@@ -32,14 +32,13 @@ class Mixture:
         self.emissions = emissions
 
     def simulate(self, num):
-        states = []
-        emissions = []
+        self.state_vec = []
         for n in range(num):
-            state = self.state()
-            emission = self.emissions[state].sample()
-            states.append(state)
-            emissions.append(emission)
-        return states, emissions
+            self.state_vec.append(self.state())
+
+    def emit(self):
+        self.emission_vec = [self.emissions[state].sample()
+                             for state in self.state_vec]
 
 # Distinguished states 'Start' and 'End' without emissions
 class HMM:
@@ -57,16 +56,16 @@ class HMM:
         self.emissions = emissions
 
     def simulate(self):
-        states = []
-        emissions = []
+        self.state_vec = []
         state = 'Start'
         while True:
             state = self.transitions[state]()
             if state == 'End': break
-            emission = self.emissions[state].sample()
-            states.append(state)
-            emissions.append(emission)
-        return states, emissions
+            self.state_vec.append(state)
+
+    def emit(self):
+        self.emission_vec = [self.emissions[state].sample()
+                             for state in self.state_vec]
 
 class Laplace:
     def __init__(self, mu = 0.0, b = 1.0, max_b = 0.0):
@@ -302,50 +301,55 @@ if __name__ == '__main__':
     num_classes_guess = 3
     graphics_on = False
     
-    #m = Mixture(([1,2,3], [0.3, 0.2, 0.5]), emission_spec)
+    # Generate mixture model states
+    m = Mixture(([1,2,3], [0.3, 0.2, 0.5]), emission_spec)
+    m.simulate(1000)
 
-    #states, emissions = m.simulate(1000)
-
-    #pi, dists = em_method(emissions, num_classes_guess, dist)
-    #print_mixture(pi, dists)
-    #display_hist(emissions, dists)
-    #display_densities(emissions, dists)
-
+    # Generate HMM states
     while True:
         h = HMM([('Start', (1,),          (1.0,)),
                  (1,       (1,2,3),       (0.98, 0.02, 0.0)),
                  (2,       (1,2,3),       (0.02, 0.95,  0.03)),
                  (3,       (1,2,3,'End'), (0.03,  0.03,  0.93, 0.01))],
                 emission_spec)
-        states, emissions = h.simulate()
-        if len(emissions) < 2000 and len(emissions) > 400: break
+        h.simulate()
+        num_data = len(h.state_vec)
+        if num_data < 2000 and num_data > 400: break
 
-    for num_block in [1, 5, 10, 20]:
-        print 'Blocks: %d' % num_block
-        start_time = time.clock()
-        pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
-                                   num_block = num_block,
-                                   smart_gamma = False)
-        end_time = time.clock()
+    for name, model in [('Mixture', m),
+                        ('HMM', h)]:
+        print name
+        model.emit()
+        states, emissions = model.state_vec, model.emission_vec
         
-        print 'Reps: %d (%s)' % (reps, conv and 'converged' or 'not converged')
-        print 'Time elapsed: %.2f' % (end_time - start_time)
-        print_mixture(pi, dists)
-        if graphics_on: display_densities(emissions, dists)
+        for num_block in [1, 5, 10, 20]:
+            print 'Blocks: %d' % num_block
+            
+            start_time = time.clock()
+            pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
+                                       num_block = num_block,
+                                       smart_gamma = False)
+            end_time = time.clock()
 
-    #viterbi_density, viterbi_path = viterbi(emissions, h)
-    #print viterbi_density
+            conv_status = conv and 'converged' or 'not converged'
+            print 'Reps: %d (%s)' % (reps, conv_status)
+            print 'Time elapsed: %.2f' % (end_time - start_time)
+            print_mixture(pi, dists)
+            if graphics_on: display_densities(emissions, dists)
 
-        if graphics_on: plt.plot(states, color='black', linestyle='-.')
-    #plt.plot(viterbi_path, color='red', linestyle='.-.')
-        if graphics_on:
-            plt.plot(emissions)
-            for d in dists:
-                mu, sigma = d.mean(), d.sd()
-                plt.axhline(mu, linewidth=2)
-                plt.axhline(mu - 2 * sigma, linestyle='--')
-                plt.axhline(mu + 2 * sigma, linestyle='--')
-            plt.show()
+            #viterbi_density, viterbi_path = viterbi(emissions, h)
+            #print viterbi_density
 
-        if graphics_on: display_hist(emissions, dists)
+            if graphics_on: plt.plot(states, color='black', linestyle='-.')
+            #plt.plot(viterbi_path, color='red', linestyle='.-.')
+            if graphics_on:
+                plt.plot(emissions)
+                for d in dists:
+                    mu, sigma = d.mean(), d.sd()
+                    plt.axhline(mu, linewidth=2)
+                    plt.axhline(mu - 2 * sigma, linestyle='--')
+                    plt.axhline(mu + 2 * sigma, linestyle='--')
+                plt.show()
+
+            if graphics_on: display_hist(emissions, dists)
 
