@@ -7,6 +7,7 @@ import sys
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 # Adapted from:
 # http://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
@@ -321,10 +322,13 @@ if __name__ == '__main__':
 
     for num_block in [1, 5, 10, 20]:
         print 'Blocks: %d' % num_block
+        start_time = time.clock()
         pi, dists, reps = em(emissions, num_classes_guess, dist,
                              num_block = num_block,
                              smart_gamma = False)
+        end_time = time.clock()
         print 'Reps: %d' % reps
+        print 'Time elapsed: %.2f' % (end_time - start_time)
         print_mixture(pi, dists)
         if graphics_on: display_densities(emissions, dists)
 
