@@ -160,54 +160,33 @@ class Kernel:
 def normalize(x):
     return x / sum(x)
 
-# Mostly obsolete, since can use em_blocked with num_block = 1.
-def em_mixture(data, num_class, dist, epsilon = 0.001, init_reps = 10):
-    data = np.array(data)
-    classes = range(num_class)
-
-    #breaks = np.linspace(0, 100, num_class + 1)[1:]
-    #quantile = np.percentile(data, list(breaks))
-    #gamma_hat = np.zeros((num_class, len(data)))
-    #for j in range(len(data)):
-    #    for i in classes:
-    #        if data[j] <= quantile[i]:
-    #            break
-    #    gamma_hat[i,j] = 1.0
-
-    pi_hat = normalize(np.array([1.0 for i in classes]))
-    gamma_hat = np.transpose(np.random.multinomial(1, pi_hat, len(data)))
-    dists_hat = [dist.from_data(data, gamma_hat[i]) for i in classes]
-
-    reps = 0
-    while True:
-        # E step
-        phi_hat = [map(d.density(), data) for d in dists_hat]
-        pi_phi_hat = np.transpose(np.transpose(phi_hat) * pi_hat)
-        pi_phi_hat_sum = np.sum(pi_phi_hat, 0)
-        gamma_new = pi_phi_hat / pi_phi_hat_sum
-
-        # M step
-        dists_new = [dist.from_data(data, gamma_new[i]) for i in classes]
-        pi_new = normalize(np.sum(gamma_new, 1))
-
-        reps += 1
-        if np.min(np.abs(gamma_hat - gamma_new)) > epsilon or reps < init_reps:
-            pi_hat, gammma_hat, dists_hat = pi_new, gamma_new, dists_new
-        else:
-            break
-
-    return pi_new, dists_new, reps
-
-def em_blocked(data, num_class, dist, epsilon = 0.001, init_reps = 10,
-               num_block = 20, count_restart = 5.0):
+def em(data, num_class, dist, epsilon = 0.001, init_reps = 10,
+       num_block = 1, count_restart = 5.0, smart_gamma = False):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
     blocks = np.array_split(np.arange(num_data), num_block)
 
+    # Initialize (blocked) mixing parametes
     pi_hat = np.array([normalize(np.array([1.0 for i in classes]))
                        for b in range(num_block)])
-    gamma_hat = np.transpose(np.random.multinomial(1, pi_hat[0], num_data))
+
+    # Initialize responsiblities, winner take all
+    if smart_gamma:
+        # Data dependent
+        breaks = np.linspace(0, 100, num_class + 1)[1:]
+        quantile = np.percentile(data, list(breaks))
+        gamma_hat = np.zeros((num_class, num_data))
+        for j in range(num_data):
+            for i in classes:
+                if data[j] <= quantile[i]:
+                    break
+            gamma_hat[i,j] = 1.0
+    else:
+        # Data independent
+        gamma_hat = np.transpose(np.random.multinomial(1, pi_hat[0], num_data))
+
+    # Learn initial class-conditional distributions from data
     dists_hat = [dist.from_data(data, gamma_hat[i]) for i in classes]
 
     reps = 0
@@ -339,10 +318,11 @@ if __name__ == '__main__':
         states, emissions = h.simulate()
         if len(emissions) < 2000 and len(emissions) > 400: break
 
-    for name, em_method in [('Mixture', em_mixture),
-                            ('Blocked', em_blocked)]:
-        print name
-        pi, dists, reps = em_method(emissions, num_classes_guess, dist)
+    for num_block in [1, 5, 10, 20]:
+        print 'Blocks: %d' % num_block
+        pi, dists, reps = em(emissions, num_classes_guess, dist,
+                             num_block = num_block,
+                             smart_gamma = False)
         print 'Reps: %d' % reps
         print_mixture(pi, dists)
         display_densities(emissions, dists)
