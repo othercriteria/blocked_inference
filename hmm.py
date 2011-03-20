@@ -299,6 +299,7 @@ if __name__ == '__main__':
     emission_spec = emissions_laplace
     dist = Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
+    graphics_on = False
     
     #m = Mixture(([1,2,3], [0.3, 0.2, 0.5]), emission_spec)
 
@@ -325,20 +326,21 @@ if __name__ == '__main__':
                              smart_gamma = False)
         print 'Reps: %d' % reps
         print_mixture(pi, dists)
-        display_densities(emissions, dists)
+        if graphics_on: display_densities(emissions, dists)
 
     #viterbi_density, viterbi_path = viterbi(emissions, h)
     #print viterbi_density
 
-        plt.plot(states, color='black', linestyle='-.')
+        if graphics_on: plt.plot(states, color='black', linestyle='-.')
     #plt.plot(viterbi_path, color='red', linestyle='.-.')
-        plt.plot(emissions)
-        for d in dists:
-            mu, sigma = d.mean(), d.sd()
-            plt.axhline(mu, linewidth=2)
-            plt.axhline(mu - 2 * sigma, linestyle='--')
-            plt.axhline(mu + 2 * sigma, linestyle='--')
-        plt.show()
+        if graphics_on:
+            plt.plot(emissions)
+            for d in dists:
+                mu, sigma = d.mean(), d.sd()
+                plt.axhline(mu, linewidth=2)
+                plt.axhline(mu - 2 * sigma, linestyle='--')
+                plt.axhline(mu + 2 * sigma, linestyle='--')
+            plt.show()
 
-        display_hist(emissions, dists)
+        if graphics_on: display_hist(emissions, dists)
 
