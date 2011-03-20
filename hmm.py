@@ -161,7 +161,7 @@ class Kernel:
 def normalize(x):
     return x / sum(x)
 
-def em(data, num_class, dist, epsilon = 0.001, init_reps = 10,
+def em(data, num_class, dist, epsilon = 0.001, init_reps = 10, max_reps = 50,
        num_block = 1, count_restart = 5.0, smart_gamma = False):
     data = np.array(data)
     num_data = data.shape[0]
@@ -211,12 +211,12 @@ def em(data, num_class, dist, epsilon = 0.001, init_reps = 10,
                            for block in blocks])
 
         reps += 1
-        if np.min(np.abs(gamma_hat - gamma_new)) > epsilon or reps < init_reps:
-            pi_hat, gammma_hat, dists_hat = pi_new, gamma_new, dists_new
-        else:
+        converged = np.min(np.abs(gamma_hat - gamma_new)) < epsilon
+        pi_hat, gammma_hat, dists_hat = pi_new, gamma_new, dists_new
+        if (converged and reps >= init_reps) or (reps >= max_reps):
             break
 
-    return pi_new, dists_new, reps
+    return pi_new, dists_new, reps, converged
 
 def viterbi(data, model):
     states = model.states
@@ -323,11 +323,12 @@ if __name__ == '__main__':
     for num_block in [1, 5, 10, 20]:
         print 'Blocks: %d' % num_block
         start_time = time.clock()
-        pi, dists, reps = em(emissions, num_classes_guess, dist,
-                             num_block = num_block,
-                             smart_gamma = False)
+        pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
+                                   num_block = num_block,
+                                   smart_gamma = False)
         end_time = time.clock()
-        print 'Reps: %d' % reps
+        
+        print 'Reps: %d (%s)' % (reps, conv and 'converged' or 'not converged')
         print 'Time elapsed: %.2f' % (end_time - start_time)
         print_mixture(pi, dists)
         if graphics_on: display_densities(emissions, dists)
