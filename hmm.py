@@ -338,6 +338,7 @@ if __name__ == '__main__':
                 run_id += 1
                 this_run = {}
 
+                this_run['num data'] = num_data
                 this_run['model type'] = name
                 this_run['rep'] = rep
                 
