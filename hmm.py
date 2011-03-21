@@ -304,10 +304,10 @@ if __name__ == '__main__':
                           2: Laplace(3.5, 0.3),
                           3: Laplace(6.5, 0.1) }
     emission_spec = emissions_laplace
-    dist = Kernel(h = 0.3) # Laplace(max_b = 0.5)
+    dist = Laplace(max_b = 0.5) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
     graphics_on = False
-    num_emission_reps = 2
+    num_emission_reps = 10
     
     # Generate HMM states
     while True:
@@ -340,7 +340,6 @@ if __name__ == '__main__':
 
                 this_run['num data'] = num_data
                 this_run['model type'] = name
-                this_run['rep'] = rep
                 
                 print 'Blocks: %d' % num_block
                 this_run['blocks'] = num_block
@@ -351,6 +350,7 @@ if __name__ == '__main__':
                                            smart_gamma = False)
                 run_time = time.clock() - start_time
                 this_run['run time'] = run_time
+                this_run['reps'] = reps
 
                 conv_status = conv and 'converged' or 'not converged'
                 this_run['convergence'] = conv_status
