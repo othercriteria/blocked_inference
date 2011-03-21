@@ -8,6 +8,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import csv
 
 # Adapted from:
 # http://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
@@ -290,6 +291,9 @@ def print_mixture(pi, dists):
     print
 
 if __name__ == '__main__':
+    run_data = {}
+    run_id = 0
+    
     emissions_normal = { 1: Normal(0,   0.2),
                          2: Normal(3.5, 0.3),
                          3: Normal(6.5, 0.1) }
@@ -304,7 +308,7 @@ if __name__ == '__main__':
     
     # Generate mixture model states
     m = Mixture(([1,2,3], [0.3, 0.2, 0.5]), emission_spec)
-    m.simulate(1000)
+    m.simulate(400)
 
     # Generate HMM states
     while True:
@@ -315,7 +319,7 @@ if __name__ == '__main__':
                 emission_spec)
         h.simulate()
         num_data = len(h.state_vec)
-        if num_data < 1200 and num_data > 400: break
+        if num_data < 800 and num_data > 400: break
 
     for name, model in [('Mixture', m),
                         ('HMM', h)]:
@@ -327,17 +331,28 @@ if __name__ == '__main__':
             emissions = model.emission_vec
 
             for num_block in [1, 5, 10, 20]:
+                run_id += 1
+                this_run = {}
+
+                this_run['model type'] = name
+                this_run['rep'] = rep
+                
                 print 'Blocks: %d' % num_block
+                this_run['blocks'] = num_block
+
 
                 start_time = time.clock()
                 pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
                                            num_block = num_block,
                                            smart_gamma = False)
-                end_time = time.clock()
+                run_time = time.clock() - start_time
+                this_run['run time'] = run_time
 
                 conv_status = conv and 'converged' or 'not converged'
+                this_run['convergence'] = conv_status
+                
                 print 'Reps: %d (%s)' % (reps, conv_status)
-                print 'Time elapsed: %.2f' % (end_time - start_time)
+                print 'Time elapsed: %.2f' % run_time
                 print_mixture(pi, dists)
                 if graphics_on: display_densities(emissions, dists)
 
@@ -357,3 +372,15 @@ if __name__ == '__main__':
 
                 if graphics_on: display_hist(emissions, dists)
 
+                run_data[run_id] = this_run
+
+    # Output data to CSV
+    cols = set()
+    for id in run_data:
+        for k in run_data[id]:
+            cols.add(k)
+    with open('outfile.csv', 'wb') as f:
+        writer = csv.writer(f)
+        writer.writerow(list(cols))
+        writer.writerows([[run_data[id][c] for c in cols] for id in run_data])
+    
