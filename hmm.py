@@ -160,7 +160,7 @@ class Kernel:
 def normalize(x):
     return x / sum(x)
 
-def em(data, num_class, dist, epsilon = 0.001, init_reps = 10, max_reps = 50,
+def em(data, num_class, dist, epsilon = 0.001, init_reps = 5, max_reps = 50,
        num_block = 1, count_restart = 5.0, smart_gamma = False):
     data = np.array(data)
     num_data = data.shape[0]
@@ -300,6 +300,7 @@ if __name__ == '__main__':
     dist = Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
     graphics_on = False
+    num_emission_reps = 2
     
     # Generate mixture model states
     m = Mixture(([1,2,3], [0.3, 0.2, 0.5]), emission_spec)
@@ -314,42 +315,45 @@ if __name__ == '__main__':
                 emission_spec)
         h.simulate()
         num_data = len(h.state_vec)
-        if num_data < 2000 and num_data > 400: break
+        if num_data < 1200 and num_data > 400: break
 
     for name, model in [('Mixture', m),
                         ('HMM', h)]:
         print name
-        model.emit()
-        states, emissions = model.state_vec, model.emission_vec
-        
-        for num_block in [1, 5, 10, 20]:
-            print 'Blocks: %d' % num_block
-            
-            start_time = time.clock()
-            pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
-                                       num_block = num_block,
-                                       smart_gamma = False)
-            end_time = time.clock()
+        states = model.state_vec
+        for rep in range(num_emission_reps):
+            print 'Emission repetition %d' % rep
+            model.emit()
+            emissions = model.emission_vec
 
-            conv_status = conv and 'converged' or 'not converged'
-            print 'Reps: %d (%s)' % (reps, conv_status)
-            print 'Time elapsed: %.2f' % (end_time - start_time)
-            print_mixture(pi, dists)
-            if graphics_on: display_densities(emissions, dists)
+            for num_block in [1, 5, 10, 20]:
+                print 'Blocks: %d' % num_block
 
-            #viterbi_density, viterbi_path = viterbi(emissions, h)
-            #print viterbi_density
+                start_time = time.clock()
+                pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
+                                           num_block = num_block,
+                                           smart_gamma = False)
+                end_time = time.clock()
 
-            if graphics_on: plt.plot(states, color='black', linestyle='-.')
-            #plt.plot(viterbi_path, color='red', linestyle='.-.')
-            if graphics_on:
-                plt.plot(emissions)
-                for d in dists:
-                    mu, sigma = d.mean(), d.sd()
-                    plt.axhline(mu, linewidth=2)
-                    plt.axhline(mu - 2 * sigma, linestyle='--')
-                    plt.axhline(mu + 2 * sigma, linestyle='--')
-                plt.show()
+                conv_status = conv and 'converged' or 'not converged'
+                print 'Reps: %d (%s)' % (reps, conv_status)
+                print 'Time elapsed: %.2f' % (end_time - start_time)
+                print_mixture(pi, dists)
+                if graphics_on: display_densities(emissions, dists)
 
-            if graphics_on: display_hist(emissions, dists)
+                #viterbi_density, viterbi_path = viterbi(emissions, h)
+                #print viterbi_density
+
+                if graphics_on: plt.plot(states, color='black', linestyle='-.')
+                #plt.plot(viterbi_path, color='red', linestyle='.-.')
+                if graphics_on:
+                    plt.plot(emissions)
+                    for d in dists:
+                        mu, sigma = d.mean(), d.sd()
+                        plt.axhline(mu, linewidth=2)
+                        plt.axhline(mu - 2 * sigma, linestyle='--')
+                        plt.axhline(mu + 2 * sigma, linestyle='--')
+                    plt.show()
+
+                if graphics_on: display_hist(emissions, dists)
 
