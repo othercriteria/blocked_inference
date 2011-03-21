@@ -164,7 +164,7 @@ class Kernel:
 def normalize(x):
     return x / sum(x)
 
-def em(data, num_class, dist, epsilon = 0.001, init_reps = 5, max_reps = 50,
+def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
        num_block = 1, count_restart = 5.0, smart_gamma = False):
     data = np.array(data)
     num_data = data.shape[0]
@@ -297,86 +297,94 @@ if __name__ == '__main__':
     run_data = {}
     run_id = 0
     
-    emissions_normal = { 1: Normal(0,   0.2),
-                         2: Normal(3.5, 0.3),
-                         3: Normal(6.5, 0.1) }
-    emissions_laplace = { 1: Laplace(0, 0.2),
-                          2: Laplace(3.5, 0.3),
-                          3: Laplace(6.5, 0.1) }
+    emissions_normal = { 1: Normal(0,   0.6),
+                         2: Normal(3.5, 0.8),
+                         3: Normal(6.5, 0.4) }
+    emissions_laplace = { 1: Laplace(0, 0.6),
+                          2: Laplace(3.5, 0.8),
+                          3: Laplace(6.5, 0.4) }
     emission_spec = emissions_laplace
-    dist = Laplace(max_b = 0.5) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
+    dist = Laplace(max_b = 1.0) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
     graphics_on = False
+    num_state_reps = 10
     num_emission_reps = 10
-    
-    # Generate HMM states
-    while True:
-        h = HMM([('Start', (1,),          (1.0,)),
-                 (1,       (1,2,3),       (0.98, 0.02, 0.0)),
-                 (2,       (1,2,3),       (0.02, 0.95,  0.03)),
-                 (3,       (1,2,3,'End'), (0.03,  0.03,  0.93, 0.01))],
-                emission_spec)
-        h.simulate()
-        num_data = len(h.state_vec)
-        if num_data < 800 and num_data > 400: break
 
-    # Generate mixture states by shuffling.
-    # This looks excessively hackish.
-    m = h.__copy__()
-    np.random.shuffle(m.state_vec)
+    for state_rep in range(num_state_reps):
+        print 'State repetition %d' % state_rep
+        
+        # Generate HMM states
+        while True:
+            h = HMM([('Start', (1,),          (1.0,)),
+                     (1,       (1,2,3),       (0.98, 0.02, 0.0)),
+                     (2,       (1,2,3),       (0.02, 0.95,  0.03)),
+                     (3,       (1,2,3,'End'), (0.03,  0.03,  0.93, 0.01))],
+                    emission_spec)
+            h.simulate()
+            num_data = len(h.state_vec)
+            if num_data < 800 and num_data > 200: break
 
-    for name, model in [('Mixture', m),
-                        ('HMM', h)]:
-        print name
-        states = model.state_vec
-        for rep in range(num_emission_reps):
-            print 'Emission repetition %d' % rep
-            model.emit()
-            emissions = model.emission_vec
+        # Generate mixture states by shuffling.
+        # This looks excessively hackish.
+        m = h.__copy__()
+        np.random.shuffle(m.state_vec)
 
-            for num_block in [1, 5, 10, 20]:
-                run_id += 1
-                this_run = {}
+        for name, model in [('Mixture', m),
+                            ('HMM', h)]:
+            print name
+            states = model.state_vec
+            for emission_rep in range(num_emission_reps):
+                print 'Emission repetition %d' % emission_rep
+                model.emit()
+                emissions = model.emission_vec
 
-                this_run['num data'] = num_data
-                this_run['model type'] = name
-                
-                print 'Blocks: %d' % num_block
-                this_run['blocks'] = num_block
+                for num_block in [1, 2, 5, 10, 20, 40]:
+                    run_id += 1
+                    this_run = {}
 
-                start_time = time.clock()
-                pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
-                                           num_block = num_block,
-                                           smart_gamma = False)
-                run_time = time.clock() - start_time
-                this_run['run time'] = run_time
-                this_run['reps'] = reps
+                    this_run['state rep'] = state_rep
+                    this_run['emission rep'] = emission_rep
+                    this_run['num data'] = num_data
+                    this_run['model type'] = name
 
-                conv_status = conv and 'converged' or 'not converged'
-                this_run['convergence'] = conv_status
-                
-                print 'Reps: %d (%s)' % (reps, conv_status)
-                print 'Time elapsed: %.2f' % run_time
-                print_mixture(pi, dists)
-                if graphics_on: display_densities(emissions, dists)
+                    print 'Blocks: %d' % num_block
+                    this_run['blocks'] = num_block
 
-                #viterbi_density, viterbi_path = viterbi(emissions, h)
-                #print viterbi_density
+                    start_time = time.clock()
+                    pi, dists, reps, conv = em(emissions, num_classes_guess,
+                                               dist,
+                                               num_block = num_block,
+                                               smart_gamma = False)
+                    run_time = time.clock() - start_time
+                    this_run['run time'] = run_time
+                    this_run['reps'] = reps
 
-                if graphics_on: plt.plot(states, color='black', linestyle='-.')
-                #plt.plot(viterbi_path, color='red', linestyle='.-.')
-                if graphics_on:
-                    plt.plot(emissions)
-                    for d in dists:
-                        mu, sigma = d.mean(), d.sd()
-                        plt.axhline(mu, linewidth=2)
-                        plt.axhline(mu - 2 * sigma, linestyle='--')
-                        plt.axhline(mu + 2 * sigma, linestyle='--')
-                    plt.show()
+                    conv_status = conv and 'converged' or 'not converged'
+                    this_run['convergence'] = conv_status
 
-                if graphics_on: display_hist(emissions, dists)
+                    print 'Reps: %d (%s)' % (reps, conv_status)
+                    print 'Time elapsed: %.2f' % run_time
+                    print_mixture(pi, dists)
+                    if graphics_on: display_densities(emissions, dists)
 
-                run_data[run_id] = this_run
+                    #viterbi_density, viterbi_path = viterbi(emissions, h)
+                    #print viterbi_density
+
+                    if graphics_on:
+                        plt.plot(states, color='black', linestyle='-.')
+                    #plt.plot(viterbi_path, color='red', linestyle='.-.')
+                    if graphics_on:
+                        plt.plot(emissions)
+                        for d in dists:
+                            mu, sigma = d.mean(), d.sd()
+                            plt.axhline(mu, linewidth=2)
+                            plt.axhline(mu - 2 * sigma, linestyle='--')
+                            plt.axhline(mu + 2 * sigma, linestyle='--')
+                        plt.show()
+
+                    if graphics_on: display_hist(emissions, dists)
+
+                    run_data[run_id] = this_run
 
     # Output data to CSV
     cols = set()
