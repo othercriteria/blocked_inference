@@ -25,25 +25,10 @@ class RandomGenerator(object):
     def __call__(self):
         return self.next()
 
-class Mixture:
-    def __init__(self, mixture, emissions):
-        states, weights = mixture
-        self.state = RandomGenerator(states, weights)
-
-        self.emissions = emissions
-
-    def simulate(self, num):
-        self.state_vec = []
-        for n in range(num):
-            self.state_vec.append(self.state())
-
-    def emit(self):
-        self.emission_vec = [self.emissions[state].sample()
-                             for state in self.state_vec]
-
 # Distinguished states 'Start' and 'End' without emissions
 class HMM:
-    def __init__(self, transitions, emissions):
+    def __init__(self, transitions = None, emissions = None):
+        if transitions is None and emissions is None: return
         self.states = set()
         self.transition_matrix = {}
         self.transitions = {}
@@ -54,7 +39,25 @@ class HMM:
                 self.transition_matrix[(state, s)] = w
         self.states.difference_update(['Start', 'End'])
 
+        self.state_vec, self.emission_vec = None, None
+
         self.emissions = emissions
+
+    # Produces a fairly shallow copy, only useful for mutating
+    # state_vec and emission_vec.
+    def __copy__(self):
+        h = HMM()
+        h.states = self.states
+        h.transition_matrix = self.transition_matrix
+        h.transitions = self.transitions
+        h.emissions = self.emissions
+
+        if not self.state_vec is None:
+            h.state_vec = self.state_vec[:]
+        if not self.emission_vec is None:
+            h.emission_vec = self.emission_vec[:]
+
+        return h
 
     def simulate(self):
         self.state_vec = []
@@ -306,10 +309,6 @@ if __name__ == '__main__':
     graphics_on = False
     num_emission_reps = 2
     
-    # Generate mixture model states
-    m = Mixture(([1,2,3], [0.3, 0.2, 0.5]), emission_spec)
-    m.simulate(400)
-
     # Generate HMM states
     while True:
         h = HMM([('Start', (1,),          (1.0,)),
@@ -320,6 +319,11 @@ if __name__ == '__main__':
         h.simulate()
         num_data = len(h.state_vec)
         if num_data < 800 and num_data > 400: break
+
+    # Generate mixture states by shuffling.
+    # This looks excessively hackish.
+    m = h.__copy__()
+    np.random.shuffle(m.state_vec)
 
     for name, model in [('Mixture', m),
                         ('HMM', h)]:
@@ -339,7 +343,6 @@ if __name__ == '__main__':
                 
                 print 'Blocks: %d' % num_block
                 this_run['blocks'] = num_block
-
 
                 start_time = time.clock()
                 pi, dists, reps, conv = em(emissions, num_classes_guess, dist,
