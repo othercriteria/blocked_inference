@@ -307,7 +307,7 @@ if __name__ == '__main__':
     dist = Laplace(max_b = 1.0) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
     graphics_on = False
-    num_state_reps = 10
+    num_state_reps = 20
     num_emission_reps = 10
 
     for state_rep in range(num_state_reps):
@@ -322,7 +322,7 @@ if __name__ == '__main__':
                     emission_spec)
             h.simulate()
             num_data = len(h.state_vec)
-            if num_data < 800 and num_data > 200: break
+            if num_data < 2000 and num_data > 200: break
 
         # Generate mixture states by shuffling.
         # This looks excessively hackish.
