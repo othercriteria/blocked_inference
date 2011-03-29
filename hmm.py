@@ -217,23 +217,33 @@ def print_mixture(pi, dists):
         print '%s: %s' % (p, d.display())
     print
 
+def max_error_mean(dists, dists_target):
+    return min([max([abs(d.mean() - dt.mean())
+                     for d, dt in zip(dists_perm, dists_target)])
+                for dists_perm in permute(dists)])
+
+def mean_error_mean(dists, dists_target):
+    return min([np.mean([abs(d.mean() - dt.mean())
+                         for d, dt in zip(dists_perm, dists_target)])
+                for dists_perm in permute(dists)])
+    
 if __name__ == '__main__':
     run_data = {}
     run_id = 0
     
-    emissions_normal = { 1: Normal(0,   0.6),
-                         2: Normal(3.5, 0.8),
-                         3: Normal(6.5, 0.4) }
-    emissions_laplace = { 1: Laplace(0, 0.6),
-                          2: Laplace(3.5, 0.8),
-                          3: Laplace(6.5, 0.4) }
-    emission_spec = emissions_laplace
-    dist = Laplace(max_b = 1.0) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
+    emissions_normal = { 1: Normal(0,   0.2),
+                         2: Normal(3.5, 0.3),
+                         3: Normal(6.5, 0.1) }
+    emissions_laplace = { 1: Laplace(0, 0.2),
+                          2: Laplace(3.5, 0.3),
+                          3: Laplace(6.5, 0.1) }
+    emission_spec = emissions_normal
+    dist = Normal(max_sigma = 4.0) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
     graphics_on = False
-    num_state_reps = 5
-    num_emission_reps = 2
-    num_gamma_init_reps = 2
+    num_state_reps = 10
+    num_emission_reps = 5
+    num_gamma_init_reps = 5
 
     for state_rep in range(num_state_reps):
         print 'State repetition %d' % state_rep
@@ -247,7 +257,7 @@ if __name__ == '__main__':
                     emission_spec)
             model.simulate()
             num_data = len(model.state_vec)
-            if num_data < 2000 and num_data > 200: break
+            if num_data < 3000 and num_data > 100: break
 
         # Generate shuffled indices for repeatable shuffling
         shuffling = np.arange(num_data)
@@ -297,6 +307,16 @@ if __name__ == '__main__':
                         print 'Reps: %d (%s)' % (reps, conv_status)
                         print 'Time elapsed: %.2f' % run_time
                         print_mixture(pi, dists)
+
+                        act = emission_spec.values()
+                        this_run['err mean max'] = max_error_mean(dists, act)
+                        this_run['err mean mean'] = mean_error_mean(dists, act)
+
+                        like = np.zeros(num_data)
+                        pi_overall = np.mean(pi, 0)
+                        for p, dist in zip(pi_overall, dists):
+                            like += p * np.array(map(dist.density(), states))
+                        this_run['log likelihood'] = np.sum(np.log(like))
 
                         run_data[run_id] = this_run
 
