@@ -199,6 +199,19 @@ def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
 
     return pi_new, dists_new, reps, converged
 
+# To be used in assessing model performance
+# I'm dismayed at how slowly the recursive approach works in Python
+def permute(list):
+    if len(list) == 1:
+        return [list]
+    else:
+        p = []
+        for i, x in enumerate(list):
+            rest = list[:i] + list[(i+1):]
+            for pr in permute(rest):
+                p.append([x] + pr)
+        return p
+
 def print_mixture(pi, dists):
     for p, d in zip(np.transpose(pi), dists):
         print '%s: %s' % (p, d.display())
