@@ -27,8 +27,7 @@ class RandomGenerator(object):
 
 # Distinguished states 'Start' and 'End' without emissions
 class HMM:
-    def __init__(self, transitions = None, emissions = None):
-        if transitions is None and emissions is None: return
+    def __init__(self, transitions, emissions):
         self.states = set()
         self.transition_matrix = {}
         self.transitions = {}
@@ -39,25 +38,7 @@ class HMM:
                 self.transition_matrix[(state, s)] = w
         self.states.difference_update(['Start', 'End'])
 
-        self.state_vec, self.emission_vec = None, None
-
         self.emissions = emissions
-
-    # Produces a fairly shallow copy, only useful for mutating
-    # state_vec and emission_vec.
-    def __copy__(self):
-        h = HMM()
-        h.states = self.states
-        h.transition_matrix = self.transition_matrix
-        h.transitions = self.transitions
-        h.emissions = self.emissions
-
-        if not self.state_vec is None:
-            h.state_vec = self.state_vec[:]
-        if not self.emission_vec is None:
-            h.emission_vec = self.emission_vec[:]
-
-        return h
 
     def simulate(self):
         self.state_vec = []
@@ -165,7 +146,7 @@ def normalize(x):
     return x / sum(x)
 
 def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
-       num_block = 1, count_restart = 5.0, smart_gamma = False):
+       num_block = 1, count_restart = 5.0, gamma_seed = None):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
@@ -176,19 +157,16 @@ def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
                        for b in range(num_block)])
 
     # Initialize responsiblities, winner take all
-    if smart_gamma:
-        # Data dependent
-        breaks = np.linspace(0, 100, num_class + 1)[1:]
-        quantile = np.percentile(data, list(breaks))
-        gamma_hat = np.zeros((num_class, num_data))
-        for j in range(num_data):
-            for i in classes:
-                if data[j] <= quantile[i]:
-                    break
-            gamma_hat[i,j] = 1.0
-    else:
-        # Data independent
-        gamma_hat = np.transpose(np.random.multinomial(1, pi_hat[0], num_data))
+    if not gamma_seed is None:
+        old_state = np.random.get_state()
+        np.random.seed(gamma_seed)
+    r = np.random.multinomial(1, pi_hat[0], num_data)
+    if not gamma_seed is None:
+        np.random.set_state(old_state)
+    order = np.argsort(data)
+    gamma_hat = np.zeros((num_class, num_data))
+    for i, o in enumerate(order):
+        gamma_hat[:,o] = np.transpose(r[i])
 
     # Learn initial class-conditional distributions from data
     dists_hat = [dist.from_data(data, gamma_hat[i]) for i in classes]
@@ -221,73 +199,6 @@ def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
 
     return pi_new, dists_new, reps, converged
 
-def viterbi(data, model):
-    states = model.states
-    transition_matrix = model.transition_matrix
-    emission_model = dict([(s, model.emissions[s].density())
-                           for s in states])
-    num_states = len(model.states)
-    num_data = len(data)
-    
-    # Build tableau
-    v = {}
-    #Initialization
-    for state in states:
-        path_val = 0
-        if ('Start', state) in transition_matrix:
-            path_val = transition_matrix[('Start', state)]
-        emit_prob = emission_model[state](data[0])
-        v[(state, 0)] = (emit_prob * path_val, 'Start')
-    # Recursion
-    for t in range(1, num_data):
-        for state in states:
-            path_val = 0
-            for prev_state in states:
-                if not (prev_state, state) in transition_matrix: continue
-                new_path_val = (v[(prev_state, t-1)][0] *
-                                transition_matrix[(prev_state, state)])
-                if new_path_val > path_val:
-                    path_val = new_path_val
-                    pointer = prev_state
-            emit_prob = emission_model[state](data[t])
-            v[(state, t)] = (emit_prob * path_val, pointer)
-    # Termination
-    final_state, final_val = None, 0
-    for state in states:
-        path_val = 0
-        if (state, 'End') in transition_matrix:
-            path_val = transition_matrix[(state, 'End')]
-        val = v[(state, num_data-1)][0] * path_val
-        if val > final_val:
-            final_state, final_val = state, val
-        
-    # Traceback
-    path = [final_state]
-    for t in range(num_data-1, 0, -1):
-        val, prev = v[(path[-1], t)]
-        state = prev
-        path.append(state)
-            
-    path.reverse()
-    return final_val, path
-
-def display_hist(data, distributions):
-    plt.figure()
-    plt.hist(data, normed = True, bins = 30)
-    for d in distributions:
-        mu, sigma = d.mean(), d.sd()
-        plt.axvline(mu, linewidth=2)
-        plt.axvline(mu - 2 * sigma, linestyle='--')
-        plt.axvline(mu + 2 * sigma, linestyle='--')
-    plt.show()
-
-def display_densities(data, distributions):
-    points = np.linspace(min(data), max(data), 1000)
-    plt.figure()
-    for d in distributions:
-        plt.plot(points, map(d.density(), points))
-    plt.show()
-
 def print_mixture(pi, dists):
     for p, d in zip(np.transpose(pi), dists):
         print '%s: %s' % (p, d.display())
@@ -307,84 +218,74 @@ if __name__ == '__main__':
     dist = Laplace(max_b = 1.0) # Kernel(h = 0.3) # Laplace(max_b = 0.5)
     num_classes_guess = 3
     graphics_on = False
-    num_state_reps = 20
-    num_emission_reps = 10
+    num_state_reps = 5
+    num_emission_reps = 2
+    num_gamma_init_reps = 2
 
     for state_rep in range(num_state_reps):
         print 'State repetition %d' % state_rep
-        
+
         # Generate HMM states
         while True:
-            h = HMM([('Start', (1,),          (1.0,)),
-                     (1,       (1,2,3),       (0.98, 0.02, 0.0)),
-                     (2,       (1,2,3),       (0.02, 0.95,  0.03)),
-                     (3,       (1,2,3,'End'), (0.03,  0.03,  0.93, 0.01))],
+            model = HMM([('Start', (1,),          (1.0,)),
+                         (1,       (1,2,3),       (0.98, 0.02, 0.0)),
+                         (2,       (1,2,3),       (0.02, 0.95,  0.03)),
+                         (3,       (1,2,3,'End'), (0.03,  0.03,  0.93, 0.01))],
                     emission_spec)
-            h.simulate()
-            num_data = len(h.state_vec)
+            model.simulate()
+            num_data = len(model.state_vec)
             if num_data < 2000 and num_data > 200: break
 
-        # Generate mixture states by shuffling.
-        # This looks excessively hackish.
-        m = h.__copy__()
-        np.random.shuffle(m.state_vec)
+        # Generate shuffled indices for repeatable shuffling
+        shuffling = np.arange(num_data)
+        np.random.shuffle(shuffling)
+        
+        for emission_rep in range(num_emission_reps):
+            print 'Emission repetition %d' % emission_rep
+            model.emit()
 
-        for name, model in [('Mixture', m),
-                            ('HMM', h)]:
-            print name
-            states = model.state_vec
-            for emission_rep in range(num_emission_reps):
-                print 'Emission repetition %d' % emission_rep
-                model.emit()
-                emissions = model.emission_vec
-
-                for num_block in [1, 2, 5, 10, 20, 40]:
-                    run_id += 1
-                    this_run = {}
-
-                    this_run['state rep'] = state_rep
-                    this_run['emission rep'] = emission_rep
-                    this_run['num data'] = num_data
-                    this_run['model type'] = name
-
+            for shuffled in [False, True]:
+                print 'Shuffling states/emissions: %s' % str(shuffled)
+                states = np.array(model.state_vec)
+                emissions = np.array(model.emission_vec)
+                if shuffled:
+                    states = states[shuffling]
+                    emissions = emissions[shuffling]
+                
+                for num_block in [1, 2, 5, 10, 20, 50]:
                     print 'Blocks: %d' % num_block
-                    this_run['blocks'] = num_block
+                    for gamma_rep in range(num_gamma_init_reps):
+                        print 'Initial gamma seed: %d' % gamma_rep
 
-                    start_time = time.clock()
-                    pi, dists, reps, conv = em(emissions, num_classes_guess,
-                                               dist,
-                                               num_block = num_block,
-                                               smart_gamma = False)
-                    run_time = time.clock() - start_time
-                    this_run['run time'] = run_time
-                    this_run['reps'] = reps
+                        run_id += 1
+                        this_run = {}
 
-                    conv_status = conv and 'converged' or 'not converged'
-                    this_run['convergence'] = conv_status
+                        this_run['num data'] = num_data
+                        this_run['state rep'] = state_rep
+                        this_run['emission rep'] = emission_rep
+                        this_run['shuffled'] = shuffled
+                        this_run['blocks'] = num_block
+                        this_run['gamma init rep'] = gamma_rep
 
-                    print 'Reps: %d (%s)' % (reps, conv_status)
-                    print 'Time elapsed: %.2f' % run_time
-                    print_mixture(pi, dists)
-                    if graphics_on: display_densities(emissions, dists)
+                        start_time = time.clock()
+                        pi, dists, reps, conv = em(emissions,
+                                                   num_classes_guess,
+                                                   dist,
+                                                   num_block = num_block,
+                                                   gamma_seed = gamma_rep,
+                                                   count_restart = 0.0)
+                        run_time = time.clock() - start_time
+                        this_run['run time'] = run_time
+                        this_run['reps'] = reps
 
-                    #viterbi_density, viterbi_path = viterbi(emissions, h)
-                    #print viterbi_density
+                        conv_status = conv and 'converged' or 'not converged'
+                        this_run['convergence'] = conv_status
 
-                    if graphics_on:
-                        plt.plot(states, color='black', linestyle='-.')
-                    #plt.plot(viterbi_path, color='red', linestyle='.-.')
-                    if graphics_on:
-                        plt.plot(emissions)
-                        for d in dists:
-                            mu, sigma = d.mean(), d.sd()
-                            plt.axhline(mu, linewidth=2)
-                            plt.axhline(mu - 2 * sigma, linestyle='--')
-                            plt.axhline(mu + 2 * sigma, linestyle='--')
-                        plt.show()
+                        print 'Reps: %d (%s)' % (reps, conv_status)
+                        print 'Time elapsed: %.2f' % run_time
+                        print_mixture(pi, dists)
 
-                    if graphics_on: display_hist(emissions, dists)
-
-                    run_data[run_id] = this_run
+                        run_data[run_id] = this_run
 
     # Output data to CSV
     cols = set()
