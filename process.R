@@ -12,6 +12,18 @@ pdf("all_run_time_num_data_by_block.pdf")
 with(dat, xyplot(run.time ~ num.data | blocks + shuffled))
 dev.off()
 
+pdf("all_err_mean_max_num_data_by_block.pdf")
+with(dat, xyplot(err.mean.max ~ num.data | blocks + shuffled))
+dev.off()
+
+pdf("all_err_mean_mean_num_data_by_block.pdf")
+with(dat, xyplot(err.mean.mean ~ num.data | blocks + shuffled))
+dev.off()
+
+pdf("all_log_likelihood_num_data_by_block.pdf")
+with(dat, xyplot(log.likelihood ~ num.data | blocks + shuffled))
+dev.off()
+
 pdf("all_reps_num_data_by_block.pdf")
 with(dat, xyplot(reps ~ num.data | blocks + shuffled))
 dev.off()
