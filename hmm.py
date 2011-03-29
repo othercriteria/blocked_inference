@@ -58,7 +58,8 @@ def normalize(x):
     return x / sum(x)
 
 def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
-       num_block = 1, count_restart = 5.0, gamma_seed = None):
+       num_block = 1, count_restart = 5.0, gamma_seed = None,
+       smart_gamma = False):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
@@ -69,16 +70,27 @@ def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
                        for b in range(num_block)])
 
     # Initialize responsiblities, winner take all
-    if not gamma_seed is None:
-        old_state = np.random.get_state()
-        np.random.seed(gamma_seed)
-    r = np.random.multinomial(1, pi_hat[0], num_data)
-    if not gamma_seed is None:
-        np.random.set_state(old_state)
-    order = np.argsort(data)
-    gamma_hat = np.zeros((num_class, num_data))
-    for i, o in enumerate(order):
-        gamma_hat[:,o] = np.transpose(r[i])
+    if smart_gamma:
+        # Data dependent
+        breaks = np.linspace(0, 100, num_class + 1)[1:]
+        quantile = np.percentile(data, list(breaks))
+        gamma_hat = np.zeros((num_class, num_data))
+        for j in range(num_data):
+            for i in classes:
+                if data[j] <= quantile[i]:
+                    break
+            gamma_hat[i,j] = 1.0
+    else:
+        if not gamma_seed is None:
+            old_state = np.random.get_state()
+            np.random.seed(gamma_seed)
+        r = np.random.multinomial(1, pi_hat[0], num_data)
+        if not gamma_seed is None:
+            np.random.set_state(old_state)
+        order = np.argsort(data)
+        gamma_hat = np.zeros((num_class, num_data))
+        for i, o in enumerate(order):
+            gamma_hat[:,o] = np.transpose(r[i])
 
     # Learn initial class-conditional distributions from data
     dists_hat = [dist.from_data(data, gamma_hat[i]) for i in classes]
@@ -142,21 +154,22 @@ def mean_error_mean(dists, dists_target):
 if __name__ == '__main__':
     run_data = {}
     run_id = 0
-    
-    emissions_normal = { 1: Normal(0,   1.0),
-                         2: Normal(3.5, 1.5),
-                         3: Normal(6.5, 0.5) }
-    emissions_laplace = { 1: Laplace(0, 1.0),
-                          2: Laplace(3.5, 1.5),
-                          3: Laplace(6.5, 0.5) }
-    emission_spec = emissions_laplace
-    dist = Laplace(max_b = 2.0)
+
+    scale = 1.0
+    emissions_normal = { 1: Normal(0,   2.0 * scale),
+                         2: Normal(3.5, 3.0 * scale),
+                         3: Normal(6.5, 1.0 * scale) }
+    emissions_laplace = { 1: Laplace(0, 2.0 * scale),
+                          2: Laplace(3.5, 3.0 * scale),
+                          3: Laplace(6.5, 1.0 * scale) }
+    emission_spec = emissions_normal
+    dist = Normal(max_sigma = 4.0)
     num_classes_guess = 3
-    graphics_on = False
-    num_state_reps = 5
-    num_emission_reps = 2
-    num_gamma_init_reps = 2
+    num_state_reps = 1
+    num_emission_reps = 1
+    num_gamma_init_reps = 1
     num_blocks = [1, 2, 5, 10, 20, 50]
+    verbose = False
 
     for state_rep in range(num_state_reps):
         print 'State repetition %d' % state_rep
@@ -171,6 +184,13 @@ if __name__ == '__main__':
             model.simulate()
             num_data = len(model.state_vec)
             if num_data < 3000 and num_data > 100: break
+
+        counts = {}
+        for state in model.state_vec:
+            if not state in counts:
+                counts[state] = 0
+            counts[state] += 1
+        print 'Counts: %s' % str(counts)
 
         # Generate shuffled indices for repeatable shuffling
         shuffling = np.arange(num_data)
@@ -209,6 +229,7 @@ if __name__ == '__main__':
                                                    dist,
                                                    num_block = num_block,
                                                    gamma_seed = gamma_rep,
+                                                   smart_gamma = True,
                                                    count_restart = 0.0)
                         run_time = time.clock() - start_time
                         this_run['run time'] = run_time
@@ -219,7 +240,7 @@ if __name__ == '__main__':
 
                         print 'Reps: %d (%s)' % (reps, conv_status)
                         print 'Time elapsed: %.2f' % run_time
-                        print_mixture(pi, dists)
+                        if verbose: print_mixture(pi, dists)
 
                         act = emission_spec.values()
                         this_run['err mean max'] = max_error_mean(dists, act)
