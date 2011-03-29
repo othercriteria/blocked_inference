@@ -57,9 +57,9 @@ class HMM:
 def normalize(x):
     return x / sum(x)
 
-def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
+def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 100,
        num_block = 1, count_restart = 5.0, gamma_seed = None,
-       smart_gamma = False):
+       smart_gamma = True):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
@@ -93,18 +93,18 @@ def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
             gamma_hat[:,o] = np.transpose(r[i])
 
     # Learn initial class-conditional distributions from data
-    dists_hat = [dist.from_data(data, gamma_hat[i]) for i in classes]
+    dists_hat = [dist.from_data(data, gamma_hat[c]) for c in classes]
 
     reps = 0
     while True:
-        # E step
+        # E step: from dists and pi, learn gamma
         phi_hat = np.array([map(d.density(), data) for d in dists_hat])
         for b, block in enumerate(blocks):
             for c in classes:
                 phi_hat[c,block] *= pi_hat[b,c]
         gamma_new = phi_hat / np.sum(phi_hat, 0)
 
-        # M step
+        # M step: from gamma, learn dists and pi
         dists_new = []
         for c in classes:
             if sum(gamma_new[c]) < count_restart:
@@ -116,8 +116,8 @@ def em(data, num_class, dist, epsilon = 0.0001, init_reps = 0, max_reps = 50,
                            for block in blocks])
 
         reps += 1
-        converged = np.min(np.abs(gamma_hat - gamma_new)) < epsilon
-        pi_hat, gammma_hat, dists_hat = pi_new, gamma_new, dists_new
+        converged = np.max(np.abs(gamma_hat - gamma_new)) < epsilon
+        pi_hat, gamma_hat, dists_hat = pi_new, gamma_new, dists_new
         if (converged and reps >= init_reps) or (reps >= max_reps):
             break
 
@@ -150,26 +150,44 @@ def mean_error_mean(dists, dists_target):
     return min([np.mean([abs(d.mean() - dt.mean())
                          for d, dt in zip(dists_perm, dists_target)])
                 for dists_perm in permute(dists)])
+
+def display_hist(data, distributions):
+    plt.figure()
+    plt.hist(data, normed = True, bins = 30)
+    for d in distributions:
+        mu, sigma = d.mean(), d.sd()
+        plt.axvline(mu, linewidth=2)
+        plt.axvline(mu - 2 * sigma, linestyle='--')
+        plt.axvline(mu + 2 * sigma, linestyle='--')
+    plt.show()
+
+def display_densities(data, distributions):
+    points = np.linspace(min(data) - 0.5, max(data) + 0.5, 1000)
+    plt.figure()
+    for d in distributions:
+        plt.plot(points, map(d.density(), points))
+    plt.show()
     
 if __name__ == '__main__':
     run_data = {}
     run_id = 0
 
-    scale = 1.0
+    scale = 0.1
     emissions_normal = { 1: Normal(0,   2.0 * scale),
                          2: Normal(3.5, 3.0 * scale),
                          3: Normal(6.5, 1.0 * scale) }
     emissions_laplace = { 1: Laplace(0, 2.0 * scale),
                           2: Laplace(3.5, 3.0 * scale),
                           3: Laplace(6.5, 1.0 * scale) }
-    emission_spec = emissions_normal
-    dist = Normal(max_sigma = 4.0)
+    emission_spec = emissions_laplace
+    dist = Laplace(max_b = 0.4)
     num_classes_guess = 3
-    num_state_reps = 1
-    num_emission_reps = 1
-    num_gamma_init_reps = 1
-    num_blocks = [1, 2, 5, 10, 20, 50]
+    num_state_reps = 5
+    num_emission_reps = 2
+    num_gamma_init_reps = 5
+    num_blocks = [1, 5, 10, 50, 100]
     verbose = False
+    graphics_on = False
 
     for state_rep in range(num_state_reps):
         print 'State repetition %d' % state_rep
@@ -183,7 +201,7 @@ if __name__ == '__main__':
                     emission_spec)
             model.simulate()
             num_data = len(model.state_vec)
-            if num_data < 3000 and num_data > 100: break
+            if num_data < 3000 and num_data > 200: break
 
         counts = {}
         for state in model.state_vec:
@@ -229,7 +247,7 @@ if __name__ == '__main__':
                                                    dist,
                                                    num_block = num_block,
                                                    gamma_seed = gamma_rep,
-                                                   smart_gamma = True,
+                                                   smart_gamma = False,
                                                    count_restart = 0.0)
                         run_time = time.clock() - start_time
                         this_run['run time'] = run_time
@@ -241,6 +259,10 @@ if __name__ == '__main__':
                         print 'Reps: %d (%s)' % (reps, conv_status)
                         print 'Time elapsed: %.2f' % run_time
                         if verbose: print_mixture(pi, dists)
+
+                        if graphics_on:
+                            display_densities(emissions, dists)
+                            display_hist(emissions, dists)
 
                         act = emission_spec.values()
                         this_run['err mean max'] = max_error_mean(dists, act)
