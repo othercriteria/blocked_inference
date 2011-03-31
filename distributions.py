@@ -30,7 +30,9 @@ class Laplace:
 
     def density(self):
         c = 1 / (2 * self.b)
-        return (lambda x: c * np.exp(-abs(x - self.mu) / self.b))
+        def d(xs):
+            return c * np.exp(-abs(xs - self.mu) / self.b)
+        return d
 
 class Normal:
     def __init__(self, mu = 0.0, sigma = 1.0, max_sigma = 0.0):
@@ -59,7 +61,9 @@ class Normal:
 
     def density(self):
         c = (1 / np.sqrt(2 * np.pi * self.s))
-        return (lambda x: c * np.exp(-0.5 * (x - self.m) ** 2 / (self.s ** 2)))
+        def d(xs):
+            return c * np.exp(-0.5 * (xs - self.m) ** 2 / (self.s ** 2))
+        return d
 
 class Kernel:
     def __init__(self, x = None, w = None, h = 1.0):
@@ -88,7 +92,9 @@ class Kernel:
     def density(self):
         h = self.h_adapt()
         c = (1 / np.sqrt(2 * np.pi * h))
-        def d(x):
-            contrib = np.exp(-0.5 * (x - self.x) ** 2 / (h ** 2))
-            return c * np.average(contrib, weights = self.w)
+        def d(xs):
+            def d(x):
+                contrib = np.exp(-0.5 * (x - self.x) ** 2 / (h ** 2))
+                return c * np.average(contrib, weights = self.w)
+            return (np.vectorize(d))(xs)
         return d

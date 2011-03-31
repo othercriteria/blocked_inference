@@ -102,7 +102,7 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
     reps = 0
     while True:
         # E step: from dists and pi, learn gamma
-        phi_hat = np.array([map(d.density(), data) for d in dists_hat])
+        phi_hat = np.array([(d.density())(data) for d in dists_hat])
         for b, block in enumerate(blocks):
             for c in classes:
                 phi_hat[c,block] *= pi_hat[b,c]
@@ -169,7 +169,7 @@ def display_densities(data, distributions):
     points = np.linspace(min(data) - 0.5, max(data) + 0.5, 1000)
     plt.figure()
     for d in distributions:
-        plt.plot(points, map(d.density(), points))
+        plt.plot(points, (d.density())(points))
     plt.show()
     
 def main():
@@ -183,8 +183,8 @@ def main():
     emissions_laplace = { 1: Laplace(0, 2.0 * scale),
                           2: Laplace(3.5, 3.0 * scale),
                           3: Laplace(6.5, 1.0 * scale) }
-    emission_spec = emissions_normal
-    dist = Normal(max_sigma = 6.0)
+    emission_spec = emissions_laplace
+    dist = Kernel(h = 0.1)
     num_classes_guess = 3
     num_state_reps = 1
     num_emission_reps = 1
@@ -279,7 +279,7 @@ def main():
                         like = np.zeros(num_data)
                         pi_overall = np.mean(pi, 0)
                         for p, dist in zip(pi_overall, dists):
-                            like += p * np.array(map(dist.density(), states))
+                            like += p * (dist.density())(states)
                         this_run['log likelihood'] = np.sum(np.log(like))
 
                         run_data[run_id] = this_run
