@@ -12,6 +12,10 @@ import csv
 
 from distributions import Normal, Laplace, Kernel
 
+# Set random seeds for reproducible runs.
+random.seed(163)
+np.random.seed(137)
+
 # Adapted from:
 # http://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
 class RandomGenerator(object):
