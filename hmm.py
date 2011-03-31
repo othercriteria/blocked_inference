@@ -57,7 +57,7 @@ class HMM:
 def normalize(x):
     return x / sum(x)
 
-def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 100,
+def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
        num_block = 1, count_restart = 5.0, gamma_seed = None,
        smart_gamma = True):
     data = np.array(data)
@@ -168,27 +168,31 @@ def display_densities(data, distributions):
         plt.plot(points, map(d.density(), points))
     plt.show()
     
-if __name__ == '__main__':
+def main():
     run_data = {}
     run_id = 0
 
-    scale = 0.1
+    scale = 0.5
     emissions_normal = { 1: Normal(0,   2.0 * scale),
                          2: Normal(3.5, 3.0 * scale),
                          3: Normal(6.5, 1.0 * scale) }
     emissions_laplace = { 1: Laplace(0, 2.0 * scale),
                           2: Laplace(3.5, 3.0 * scale),
                           3: Laplace(6.5, 1.0 * scale) }
-    emission_spec = emissions_laplace
-    dist = Laplace(max_b = 0.4)
+    emission_spec = emissions_normal
+    dist = Normal(max_sigma = 6.0)
     num_classes_guess = 3
-    num_state_reps = 5
-    num_emission_reps = 2
-    num_gamma_init_reps = 5
-    num_blocks = [1, 5, 10, 50, 100]
+    num_state_reps = 1
+    num_emission_reps = 1
+    num_gamma_init_reps = 1
+    num_blocks = [1, 2, 5, 10, 20]
     verbose = False
     graphics_on = False
 
+    total_work = (num_state_reps * num_emission_reps *
+                  2 * num_gamma_init_reps * len(num_blocks))
+
+    work = 0
     for state_rep in range(num_state_reps):
         print 'State repetition %d' % state_rep
 
@@ -201,25 +205,25 @@ if __name__ == '__main__':
                     emission_spec)
             model.simulate()
             num_data = len(model.state_vec)
-            if num_data < 3000 and num_data > 200: break
+            if num_data < 1000 and num_data > 200: break
 
         counts = {}
         for state in model.state_vec:
             if not state in counts:
                 counts[state] = 0
             counts[state] += 1
-        print 'Counts: %s' % str(counts)
+        if verbose: print 'Counts: %s' % str(counts)
 
         # Generate shuffled indices for repeatable shuffling
         shuffling = np.arange(num_data)
         np.random.shuffle(shuffling)
         
         for emission_rep in range(num_emission_reps):
-            print 'Emission repetition %d' % emission_rep
+            if verbose: print 'Emission repetition %d' % emission_rep
             model.emit()
 
             for shuffled in [False, True]:
-                print 'Shuffling states/emissions: %s' % str(shuffled)
+                if verbose: print 'Shuffling HMM run: %s' % str(shuffled)
                 states = np.array(model.state_vec)
                 emissions = np.array(model.emission_vec)
                 if shuffled:
@@ -227,9 +231,9 @@ if __name__ == '__main__':
                     emissions = emissions[shuffling]
                 
                 for num_block in num_blocks:
-                    print 'Blocks: %d' % num_block
+                    if verbose: print 'Blocks: %d' % num_block
                     for gamma_rep in range(num_gamma_init_reps):
-                        print 'Initial gamma seed: %d' % gamma_rep
+                        if verbose: print 'Initial gamma seed: %d' % gamma_rep
 
                         run_id += 1
                         this_run = {}
@@ -276,6 +280,9 @@ if __name__ == '__main__':
 
                         run_data[run_id] = this_run
 
+                        work += 1
+                        print 'Finished run %d/%d' % (work, total_work)
+
     # Output data to CSV
     cols = set()
     for id in run_data:
@@ -285,4 +292,6 @@ if __name__ == '__main__':
         writer = csv.writer(f)
         writer.writerow(list(cols))
         writer.writerows([[run_data[id][c] for c in cols] for id in run_data])
-    
+
+if __name__ == '__main__':
+    main()
