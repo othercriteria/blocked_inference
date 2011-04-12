@@ -63,7 +63,7 @@ def normalize(x):
 
 def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
        num_block = 1, count_restart = 5.0, gamma_seed = None,
-       smart_gamma = True):
+       smart_gamma = True, true_gamma = None):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
@@ -74,7 +74,14 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
                        for b in range(num_block)])
 
     # Initialize responsiblities, winner take all
-    if smart_gamma:
+    if not true_gamma is None:
+        # Initialize with true class membership
+        # This is sort of a hack in how it handles mapping of states to
+        # entries in gamma_hat.
+        gamma_hat = np.zeros((num_class, num_data))
+        for j, c in enumerate(true_gamma):
+            gamma_hat[c-1,j] = 1.0
+    elif smart_gamma:
         # Data dependent
         breaks = np.linspace(0, 100, num_class + 1)[1:]
         quantile = np.percentile(data, list(breaks))
@@ -85,6 +92,7 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
                     break
             gamma_hat[i,j] = 1.0
     else:
+        # Random initialization
         if not gamma_seed is None:
             old_state = np.random.get_state()
             np.random.seed(gamma_seed)
@@ -92,7 +100,7 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
         if not gamma_seed is None:
             np.random.set_state(old_state)
         order = np.argsort(data)
-        gamma_hat = np.zeros((num_class, num_data))
+        gamma_hat = np.empty((num_class, num_data))
         for i, o in enumerate(order):
             gamma_hat[:,o] = np.transpose(r[i])
 
@@ -183,13 +191,13 @@ def main():
     emissions_laplace = { 1: Laplace(0, 2.0 * scale),
                           2: Laplace(3.5, 3.0 * scale),
                           3: Laplace(6.5, 1.0 * scale) }
-    emission_spec = emissions_laplace
-    dist = Kernel(h = 0.1)
+    emission_spec = emissions_normal
+    dist = Normal(max_sigma = 6.0)
     num_classes_guess = 3
-    num_state_reps = 1
-    num_emission_reps = 1
+    num_state_reps = 10
+    num_emission_reps = 2
     num_gamma_init_reps = 1
-    num_blocks = [1, 2, 5, 10, 20]
+    num_blocks = [1, 2, 5, 10, 20, 50, 100]
     verbose = False
     graphics_on = False
 
@@ -209,7 +217,7 @@ def main():
                     emission_spec)
             model.simulate()
             num_data = len(model.state_vec)
-            if num_data < 1000 and num_data > 200: break
+            if num_data < 4000 and num_data > 200: break
 
         counts = {}
         for state in model.state_vec:
@@ -256,6 +264,7 @@ def main():
                                                    num_block = num_block,
                                                    gamma_seed = gamma_rep,
                                                    smart_gamma = False,
+                                                   true_gamma = states,
                                                    count_restart = 0.0)
                         run_time = time.clock() - start_time
                         this_run['run time'] = run_time
