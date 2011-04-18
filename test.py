@@ -5,7 +5,6 @@
 # Daniel Klein, 4/18/2011
 
 import random
-import sys
 import numpy as np
 import time
 import csv
