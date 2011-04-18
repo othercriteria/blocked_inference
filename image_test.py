@@ -57,8 +57,7 @@ noisy.show()
 results = em(noisy_emissions,
              num_components,
              comp_dist,
-             count_restart = count_restart,
-             smart_gamma = False)
+             count_restart = count_restart)
 dists = results['dists']
 pi = results['pi']
 gamma = np.transpose(results['gamma'])

@@ -175,7 +175,6 @@ def main():
                                      dist,
                                      blocks = blocks,
                                      gamma_seed = gamma_rep,
-                                     smart_gamma = False,
                                      true_gamma = true_gamma,
                                      count_restart = 0.0)
                         pi = results['pi']

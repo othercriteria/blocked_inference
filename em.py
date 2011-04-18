@@ -10,7 +10,7 @@ def normalize(x):
 
 def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
        blocks = None, count_restart = 5.0, gamma_seed = None,
-       smart_gamma = True, true_gamma = None):
+       true_gamma = None):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
@@ -28,16 +28,6 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
         gamma_hat = np.zeros((num_class, num_data))
         for j, c in enumerate(true_gamma):
             gamma_hat[c,j] = 1.0
-    elif smart_gamma:
-        # Data dependent
-        breaks = np.linspace(0, 100, num_class + 1)[1:]
-        quantile = np.percentile(data, list(breaks))
-        gamma_hat = np.zeros((num_class, num_data))
-        for j in range(num_data):
-            for i in classes:
-                if data[j] <= quantile[i]:
-                    break
-            gamma_hat[i,j] = 1.0
     else:
         # Random initialization
         if not gamma_seed is None:
