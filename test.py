@@ -168,14 +168,18 @@ def main():
                         this_run['gamma init rep'] = gamma_rep
 
                         start_time = time.clock()
-                        pi, dists, reps, conv = em(emissions,
-                                                   num_classes_guess,
-                                                   dist,
-                                                   blocks = blocks,
-                                                   gamma_seed = gamma_rep,
-                                                   smart_gamma = False,
-                                                   true_gamma = states,
-                                                   count_restart = 0.0)
+                        results = em(emissions,
+                                     num_classes_guess,
+                                     dist,
+                                     blocks = blocks,
+                                     gamma_seed = gamma_rep,
+                                     smart_gamma = False,
+                                     true_gamma = states,
+                                     count_restart = 0.0)
+                        pi = results['pi']
+                        dists = results['dists']
+                        reps = results['reps']
+                        conv = results['converged']
                         run_time = time.clock() - start_time
                         this_run['run time'] = run_time
                         this_run['reps'] = reps

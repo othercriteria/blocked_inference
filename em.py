@@ -83,5 +83,9 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
         if (converged and reps >= init_reps) or (reps >= max_reps):
             break
 
-    return pi_new, dists_new, reps, converged
+    return { 'pi': pi_new,
+             'dists': dists_new,
+             'gamma': gamma_new,
+             'reps': reps,
+             'converged': converged }
 
