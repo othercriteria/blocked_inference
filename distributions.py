@@ -93,8 +93,8 @@ class Kernel:
         h = self.h_adapt()
         c = (1 / np.sqrt(2 * np.pi * h))
         def d(xs):
-            def d(x):
+            def d_single(x):
                 contrib = np.exp(-0.5 * (x - self.x) ** 2 / (h ** 2))
-                return c * np.average(contrib, weights = self.w)
-            return (np.vectorize(d))(xs)
+                return np.average(contrib, weights = self.w)
+            return c * (np.vectorize(d_single))(xs)
         return d

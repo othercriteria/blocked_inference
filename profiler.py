@@ -6,7 +6,7 @@
 import cProfile
 import pstats
 
-from hmm import *
+from test import *
 cProfile.run('main()', 'hmmprof')
 
 p = pstats.Stats('hmmprof')
