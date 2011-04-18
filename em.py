@@ -67,7 +67,7 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
         dists_new = []
         for c in classes:
             if sum(gamma_new[c]) < count_restart:
-                subindices = np.random_integers(num_data, size = int(count_restart))
+                subindices = np.random.random_integers(num_data, size = int(count_restart))
                 dists_new.append(dist.from_data(data[subindices]))
             else:
                 dists_new.append(dist.from_data(data, gamma_new[c]))
