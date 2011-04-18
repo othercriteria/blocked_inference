@@ -157,6 +157,8 @@ def main():
                     for gamma_rep in range(num_gamma_init_reps):
                         if verbose: print 'Initial gamma seed: %d' % gamma_rep
 
+                        true_gamma = np.array(states) - 1
+
                         run_id += 1
                         this_run = {}
 
@@ -174,7 +176,7 @@ def main():
                                      blocks = blocks,
                                      gamma_seed = gamma_rep,
                                      smart_gamma = False,
-                                     true_gamma = states,
+                                     true_gamma = true_gamma,
                                      count_restart = 0.0)
                         pi = results['pi']
                         dists = results['dists']

@@ -25,11 +25,9 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
     # Initialize responsiblities, winner take all
     if not true_gamma is None:
         # Initialize with true class membership
-        # This is sort of a hack in how it handles mapping of states to
-        # entries in gamma_hat.
         gamma_hat = np.zeros((num_class, num_data))
         for j, c in enumerate(true_gamma):
-            gamma_hat[c-1,j] = 1.0
+            gamma_hat[c,j] = 1.0
     elif smart_gamma:
         # Data dependent
         breaks = np.linspace(0, 100, num_class + 1)[1:]
