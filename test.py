@@ -101,12 +101,12 @@ def main():
     emission_spec = emissions_normal
     dist = Normal(max_sigma = 6.0)
     num_classes_guess = 3
-    num_state_reps = 1
-    num_emission_reps = 1
-    num_gamma_init_reps = 1
+    num_state_reps = 2
+    num_emission_reps = 2
+    num_gamma_init_reps = 2
     num_blocks = [1,2,5] # [1, 2, 5, 10, 20, 50, 100]
     verbose = False
-    graphics_on = True
+    graphics_on = False
 
     total_work = (num_state_reps * num_emission_reps *
                   2 * num_gamma_init_reps * len(num_blocks))
@@ -151,6 +151,9 @@ def main():
                 
                 for num_block in num_blocks:
                     if verbose: print 'Blocks: %d' % num_block
+
+                    blocks = np.array_split(np.arange(num_data), num_block)
+                    
                     for gamma_rep in range(num_gamma_init_reps):
                         if verbose: print 'Initial gamma seed: %d' % gamma_rep
 
@@ -168,7 +171,7 @@ def main():
                         pi, dists, reps, conv = em(emissions,
                                                    num_classes_guess,
                                                    dist,
-                                                   num_block = num_block,
+                                                   blocks = blocks,
                                                    gamma_seed = gamma_rep,
                                                    smart_gamma = False,
                                                    true_gamma = states,

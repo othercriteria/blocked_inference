@@ -9,12 +9,14 @@ def normalize(x):
     return x / sum(x)
 
 def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
-       num_block = 1, count_restart = 5.0, gamma_seed = None,
+       blocks = None, count_restart = 5.0, gamma_seed = None,
        smart_gamma = True, true_gamma = None):
     data = np.array(data)
     num_data = data.shape[0]
     classes = range(num_class)
-    blocks = np.array_split(np.arange(num_data), num_block)
+    if blocks is None:
+        blocks = [np.arange(num_data)]
+    num_block = len(blocks)
 
     # Initialize (blocked) mixing parametes
     pi_hat = np.array([normalize(np.array([1.0 for i in classes]))
