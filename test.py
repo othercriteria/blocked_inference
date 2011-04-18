@@ -6,13 +6,13 @@
 
 import random
 import sys
-import matplotlib.pyplot as plt
 import numpy as np
 import time
 import csv
 
 from distributions import Normal, Laplace, Kernel
 from em import em
+from visualization import display_hist, display_densities
 
 # Set random seeds for reproducible runs.
 random.seed(163)
@@ -87,23 +87,6 @@ def mean_error_mean(dists, dists_target):
     return min([np.mean([abs(d.mean() - dt.mean())
                          for d, dt in zip(dists_perm, dists_target)])
                 for dists_perm in permute(dists)])
-
-def display_hist(data, distributions):
-    plt.figure()
-    plt.hist(data, normed = True, bins = 30)
-    for d in distributions:
-        mu, sigma = d.mean(), d.sd()
-        plt.axvline(mu, linewidth=2)
-        plt.axvline(mu - 2 * sigma, linestyle='--')
-        plt.axvline(mu + 2 * sigma, linestyle='--')
-    plt.show()
-
-def display_densities(data, distributions):
-    points = np.linspace(min(data) - 0.5, max(data) + 0.5, 1000)
-    plt.figure()
-    for d in distributions:
-        plt.plot(points, (d.density())(points))
-    plt.show()
     
 def main():
     run_data = {}
@@ -119,12 +102,12 @@ def main():
     emission_spec = emissions_normal
     dist = Normal(max_sigma = 6.0)
     num_classes_guess = 3
-    num_state_reps = 2
-    num_emission_reps = 2
-    num_gamma_init_reps = 2
+    num_state_reps = 1
+    num_emission_reps = 1
+    num_gamma_init_reps = 1
     num_blocks = [1,2,5] # [1, 2, 5, 10, 20, 50, 100]
     verbose = False
-    graphics_on = False
+    graphics_on = True
 
     total_work = (num_state_reps * num_emission_reps *
                   2 * num_gamma_init_reps * len(num_blocks))
