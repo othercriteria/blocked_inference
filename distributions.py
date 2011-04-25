@@ -20,12 +20,12 @@ class Product:
         return [dist.sd() for dist in self.dists]
 
     def density(self):
-        densities = [dist.density() for dist in self.dists]
         def d(xs):
-            def d_single(x):
-                return np.product([density(x_ind)
-                                   for density, x_ind in zip(densities, x)])
-            return map(d_single, xs)
+            num_in, num_prod = xs.shape
+            dens_mat = np.empty((num_in, num_prod))
+            for j, dist in enumerate(self.dists):
+                dens_mat[:,j] = (dist.density())(xs[:,j])
+            return np.product(dens_mat, axis = 1)
         return d
 
 class Bernoulli:
@@ -48,6 +48,7 @@ class Bernoulli:
     def sample(self):
         return ((np.random.random() < self.p) and 1.0 or 0.0)
 
+    # Note that this places probability mass outside of {0, 1}
     def density(self):
         def d(xs):
             return (self.p * xs + (1.0 - self.p) * (1.0 - xs))
