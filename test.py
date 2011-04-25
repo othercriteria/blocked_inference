@@ -9,6 +9,7 @@ import numpy as np
 import time
 import csv
 
+from hmm import HMM
 from distributions import Normal, Laplace, Kernel
 from em import em
 from visualization import display_hist, display_densities
@@ -16,48 +17,6 @@ from visualization import display_hist, display_densities
 # Set random seeds for reproducible runs.
 random.seed(163)
 np.random.seed(137)
-
-# Adapted from:
-# http://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
-class RandomGenerator(object):
-    def __init__(self, vals, weights):
-        self.vals = vals
-        self.totals = np.cumsum(weights)
-
-    def next(self):
-        rnd = random.random() * self.totals[-1]
-        ind = np.searchsorted(self.totals, rnd)
-        return self.vals[ind]
-
-    def __call__(self):
-        return self.next()
-
-# Distinguished states 'Start' and 'End' without emissions
-class HMM:
-    def __init__(self, transitions, emissions):
-        self.states = set()
-        self.transition_matrix = {}
-        self.transitions = {}
-        for state, new_states, weights in transitions:
-            self.states.add(state)
-            self.transitions[state] = RandomGenerator(new_states, weights)
-            for s, w in zip(new_states, weights):
-                self.transition_matrix[(state, s)] = w
-        self.states.difference_update(['Start', 'End'])
-
-        self.emissions = emissions
-
-    def simulate(self):
-        self.state_vec = []
-        state = 'Start'
-        while True:
-            state = self.transitions[state]()
-            if state == 'End': break
-            self.state_vec.append(state)
-
-    def emit(self):
-        self.emission_vec = [self.emissions[state].sample()
-                             for state in self.state_vec]
 
 # To be used in assessing model performance
 # I'm dismayed at how slowly the recursive approach works in Python
