@@ -51,12 +51,12 @@ def main():
     run_id = 0
 
     scale = 0.5
-    emissions_normal = { 1: Normal(0,   2.0 * scale),
-                         2: Normal(3.5, 3.0 * scale),
-                         3: Normal(6.5, 1.0 * scale) }
-    emissions_laplace = { 1: Laplace(0, 2.0 * scale),
-                          2: Laplace(3.5, 3.0 * scale),
-                          3: Laplace(6.5, 1.0 * scale) }
+    emissions_normal = { 1: Normal({'m': 0,   's': 2.0 * scale}),
+                         2: Normal({'m': 3.5, 's': 3.0 * scale}),
+                         3: Normal({'m': 6.5, 's': 1.0 * scale}) }
+    emissions_laplace = { 1: Laplace({'mu': 0,   'b': 2.0 * scale}),
+                          2: Laplace({'mu': 3.5, 'b': 3.0 * scale}),
+                          3: Laplace({'mu': 6.5, 'b': 1.0 * scale}) }
     emission_spec = emissions_normal
     dist = Normal(max_sigma = 6.0)
     num_classes_guess = 3

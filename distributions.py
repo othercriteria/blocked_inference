@@ -3,18 +3,44 @@
 
 import numpy as np
 
+class Product:
+    def __init__(self, dists):
+        self.dists = dists
+
+class Bernoulli:
+    def __init__(self, params = {'p': 0.5}):
+        self.p = params['p']
+
+    def from_data(self, data, weights = None):
+        p = np.average(data, weights)
+        return Bernoulli({'p': p})
+
+    def mean(self):
+        return self.p
+
+    def sd(self):
+        return np.sqrt(self.p * (1.0 - self.p))
+
+    def display(self):
+        return 'Berboulli(p = %.2f)' % self.p
+
+    def sample(self):
+        return ((np.random.random() < self.p) and 1.0 or 0.0)
+
+    def density(self):
+        def d(xs):
+            return (self.p * xs + (1.0 - self.p) * (1.0 - xs))
+        return d
+
 class Laplace:
-    def __init__(self, mu = 0.0, b = 1.0, max_b = 0.0):
-        self.mu, self.b, self.max_b = mu, b, max_b
+    def __init__(self, params = {'mu': 0.0, 'b': 1.0}, max_b = 0.0):
+        self.mu, self.b, self.max_b = params['mu'], params['b'], max_b
     
     def from_data(self, data, weights = None):
-        if not weights is None:
-            m = np.average(data, weights = weights)
-            v = np.average((data - m)**2, weights = weights)
-        else:
-            m = np.average(data)
-            v = np.average((data - m)**2)
-        return Laplace(m, min(np.sqrt(v / 2), self.max_b), self.max_b)
+        m = np.average(data, weights = weights)
+        v = np.average((data - m)**2, weights = weights)
+        b = min(np.sqrt(v / 2), self.max_b)
+        return Laplace({'mu': m, 'b': b}, self.max_b)
 
     def mean(self):
         return self.mu
@@ -35,17 +61,14 @@ class Laplace:
         return d
 
 class Normal:
-    def __init__(self, mu = 0.0, sigma = 1.0, max_sigma = 0.0):
-        self.m, self.s, self.max_s = mu, sigma, max_sigma
+    def __init__(self, params = {'m': 0.0, 's': 1.0}, max_sigma = 0.0):
+        self.m, self.s, self.max_s = params['m'], params['s'], max_sigma
     
     def from_data(self, data, weights = None):
-        if not weights is None:
-            m = np.average(data, weights = weights)
-            v = np.average((data - m)**2, weights = weights)
-        else:
-            m = np.average(data)
-            v = np.average((data - m)**2)
-        return Normal(m, min(np.sqrt(v), self.max_s), self.max_s)
+        m = np.average(data, weights = weights)
+        v = np.average((data - m)**2, weights = weights)
+        s = min(np.sqrt(v), self.max_s)
+        return Normal({'m': m, 's': s}, self.max_s)
 
     def mean(self):
         return self.m
