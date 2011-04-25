@@ -8,6 +8,13 @@ import numpy as np
 def normalize(x):
     return x / sum(x)
 
+def kmeans(data, k, epsilon = 0.01, max_reps = 50):
+    data = np.array(data)
+    data_mean, data_sd = np.mean(data), np.std(data)
+
+    means = np.random.normal(data_mean, data_sd, k)
+    print means
+
 def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
        blocks = None, count_restart = 5.0, gamma_seed = None,
        true_gamma = None):

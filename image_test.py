@@ -4,25 +4,29 @@
 # Testing application to image denoising.
 # Daniel Klein, 4/18/2011
 
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 
 from distributions import Normal
-from em import em
+from em import em, kmeans
 from visualization import display_hist, display_densities
 
 # Parameters
 image_file = 'broadway.jpg'
-image_rescale = 4
-noise_sd = 8.0
+image_rescale = 20
+noise_sd = 15.0
 num_components = 12
 comp_dist = Normal(max_sigma = 20.0)
-block_splits = 5
-count_restart = 50.0
+block_splits = 12
+count_restart = 20.0
+level_bits = 2
 
 # Load image
 im = Image.open(image_file).convert('L')
 width, height = im.size
+
+# Posterize image
+im = ImageOps.posterize(im, level_bits)
 
 # Resize image
 width, height = int(width / image_rescale), int(height / image_rescale)
@@ -54,10 +58,12 @@ noisy_emissions = list(noisy.getdata())
 noisy.show()
 
 # Do EM
+kmeans(noisy_emissions, num_components)
 results = em(noisy_emissions,
              num_components,
              comp_dist,
-             count_restart = count_restart)
+             count_restart = count_restart,
+             blocks = blocks)
 dists = results['dists']
 pi = results['pi']
 gamma = np.transpose(results['gamma'])
