@@ -3,16 +3,37 @@
 
 import numpy as np
 
+# Core methods are: __init__, from_data, density
+
 class Product:
     def __init__(self, dists):
         self.dists = dists
+
+    def from_data(self, data, weights = None):
+        return Product([dist.from_data(data[:,i], weights)
+                        for i, dist in enumerate(self.dists)])
+
+    def mean(self):
+        return [dist.mean() for dist in self.dists]
+
+    def sd(self):
+        return [dist.sd() for dist in self.dists]
+
+    def density(self):
+        densities = [dist.density() for dist in self.dists]
+        def d(xs):
+            def d_single(x):
+                return np.product([density(x_ind)
+                                   for density, x_ind in zip(densities, x)])
+            return map(d_single, xs)
+        return d
 
 class Bernoulli:
     def __init__(self, params = {'p': 0.5}):
         self.p = params['p']
 
     def from_data(self, data, weights = None):
-        p = np.average(data, weights)
+        p = np.average(data, weights = weights)
         return Bernoulli({'p': p})
 
     def mean(self):

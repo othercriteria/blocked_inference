@@ -43,7 +43,7 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
         r = np.random.multinomial(1, pi_hat[0], num_data)
         if not gamma_seed is None:
             np.random.set_state(old_state)
-        order = np.argsort(data)
+        order = np.argsort(map(str,data))
         gamma_hat = np.empty((num_class, num_data))
         for i, o in enumerate(order):
             gamma_hat[:,o] = np.transpose(r[i])
