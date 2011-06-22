@@ -4,16 +4,35 @@
 # Daniel Klein, 2/28/2011
 
 import numpy as np
+from numpy.linalg import norm
 
 def normalize(x):
     return x / sum(x)
 
-def kmeans(data, k, epsilon = 0.01, max_reps = 50):
+def kmeans(data, K, epsilon = 0.01, max_reps = 50):
     data = np.array(data)
+    num_data = len(data)
     data_mean, data_sd = np.mean(data), np.std(data)
 
-    means = np.random.normal(data_mean, data_sd, k)
-    print means
+    means = np.random.normal(data_mean, data_sd, K)
+
+    J = np.Inf
+    reps = 0
+    while (reps < max_reps) and (J > epsilon * num_data):
+        dists = np.empty((num_data, K))
+        for k in range(K):
+            dists[:,k] = (data - means[k]) ** 2
+        best = np.argmin(dists, 1)
+
+        for k in range(K):
+            means[k] = np.mean(data[best == k])
+        means[np.isnan(means)] = np.random.normal(data_mean, data_sd, K)
+
+        J = np.sum((data - means[best]) ** 2)
+        print J
+        reps += 1
+
+    return means
 
 def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
        blocks = None, count_restart = 5.0, gamma_seed = None,
