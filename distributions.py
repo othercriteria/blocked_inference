@@ -2,6 +2,7 @@
 # Daniel Klein, 3/29/2011
 
 import numpy as np
+from scipy.stats import norm
 
 # Core methods are: __init__, from_data, density
 
@@ -10,8 +11,8 @@ class Product:
         self.dists = dists
 
     def from_data(self, data, weights = None):
-        return Product([dist.from_data(data[:,i], weights)
-                        for i, dist in enumerate(self.dists)])
+        for i, dist in enumerate(self.dists):
+            dist.from_data(data[:,i], weights)
 
     def mean(self):
         return [dist.mean() for dist in self.dists]
@@ -19,22 +20,19 @@ class Product:
     def sd(self):
         return [dist.sd() for dist in self.dists]
 
-    def density(self):
-        def d(xs):
-            num_in, num_prod = xs.shape
-            dens_mat = np.empty((num_in, num_prod))
-            for j, dist in enumerate(self.dists):
-                dens_mat[:,j] = (dist.density())(xs[:,j])
-            return np.product(dens_mat, axis = 1)
-        return d
+    def density(self, xs):
+        num_in, num_prod = xs.shape
+        dens_mat = np.empty((num_in, num_prod))
+        for j, dist in enumerate(self.dists):
+            dens_mat[:,j] = dist.density(xs[:,j])
+        return np.product(dens_mat, axis = 1)
 
 class Bernoulli:
-    def __init__(self, params = {'p': 0.5}):
-        self.p = params['p']
+    def __init__(self, p = 0.5):
+        self.p = p
 
     def from_data(self, data, weights = None):
-        p = np.average(data, weights = weights)
-        return Bernoulli({'p': p})
+        self.p = np.average(data, weights = weights)
 
     def mean(self):
         return self.p
@@ -49,20 +47,18 @@ class Bernoulli:
         return ((np.random.random() < self.p) and 1.0 or 0.0)
 
     # Note that this places probability mass outside of {0, 1}
-    def density(self):
-        def d(xs):
-            return (self.p * xs + (1.0 - self.p) * (1.0 - xs))
-        return d
+    def density(self, xs):
+        return (self.p * xs + (1.0 - self.p) * (1.0 - xs))
 
 class Laplace:
-    def __init__(self, params = {'mu': 0.0, 'b': 1.0}, max_b = 0.0):
-        self.mu, self.b, self.max_b = params['mu'], params['b'], max_b
+    def __init__(self, mu = 0, b = 1, max_b = np.Inf):
+        self.mu, self.b, self.max_b = mu, b, max_b
     
     def from_data(self, data, weights = None):
         m = np.average(data, weights = weights)
         v = np.average((data - m)**2, weights = weights)
         b = min(np.sqrt(v / 2), self.max_b)
-        return Laplace({'mu': m, 'b': b}, self.max_b)
+        self.mu, self.b = m, b
 
     def mean(self):
         return self.mu
@@ -76,21 +72,19 @@ class Laplace:
     def sample(self):
         return np.random.laplace(self.mu, self.b)
 
-    def density(self):
+    def density(self, xs):
         c = 1 / (2 * self.b)
-        def d(xs):
-            return c * np.exp(-abs(xs - self.mu) / self.b)
-        return d
+        return c * np.exp(-abs(xs - self.mu) / self.b)
 
 class Normal:
-    def __init__(self, params = {'m': 0.0, 's': 1.0}, max_sigma = 0.0):
-        self.m, self.s, self.max_s = params['m'], params['s'], max_sigma
+    def __init__(self, m = 0, s = 1, max_sigma = np.Inf):
+        self.m, self.s, self.max_s = m, s, max_sigma
     
     def from_data(self, data, weights = None):
         m = np.average(data, weights = weights)
         v = np.average((data - m)**2, weights = weights)
         s = min(np.sqrt(v), self.max_s)
-        return Normal({'m': m, 's': s}, self.max_s)
+        self.m, self.s = m, s
 
     def mean(self):
         return self.m
@@ -104,11 +98,14 @@ class Normal:
     def sample(self):
         return np.random.normal(self.m, self.s)
 
-    def density(self):
-        c = (1 / np.sqrt(2 * np.pi * self.s))
-        def d(xs):
-            return c * np.exp(-0.5 * (xs - self.m) ** 2 / (self.s ** 2))
-        return d
+    def density(self, xs):
+        return norm.pdf(xs, self.m, self.s)
+
+class NormalFixedMean(Normal):
+    def from_data(self, data, weights = None):
+        v = np.average((data - self.m)**2, weights = weights)
+        s = min(np.sqrt(v), self.max_s)
+        self.s = s
 
 class Kernel:
     def __init__(self, x = None, w = None, h = 1.0):
@@ -118,7 +115,7 @@ class Kernel:
         return Kernel(self.h)
 
     def from_data(self, data, weights = None):
-        return Kernel(data, weights, self.h)
+        self.x, self.w = data, weights
 
     def mean(self):
         return np.average(self.x, weights = self.w)
@@ -128,18 +125,16 @@ class Kernel:
         return np.sqrt(v + self.h_adapt() ** 2)
 
     def h_adapt(self):
-        return self.h * max(1.0, sum(self.w)) ** (-0.2)
+        return self.h * max(1.0, np.sum(self.w)) ** (-0.2)
 
     def display(self):
         return 'Kernel density (n ~ %.2f, mean = %.2f, sd = %.2f; h = %.2f)' \
-               % (sum(self.w), self.mean(), self.sd(), self.h_adapt())
+               % (np.sum(self.w), self.mean(), self.sd(), self.h_adapt())
 
-    def density(self):
+    def density(self, xs):
         h = self.h_adapt()
-        c = (1 / np.sqrt(2 * np.pi * h))
-        def d(xs):
-            def d_single(x):
-                contrib = np.exp(-0.5 * (x - self.x) ** 2 / (h ** 2))
-                return np.average(contrib, weights = self.w)
-            return c * (np.vectorize(d_single))(xs)
-        return d
+        c = 1 / (h * np.sqrt(2 * np.pi))
+        def d_single(x):
+            contrib = np.exp(-0.5 * (x - self.x) ** 2 / (h ** 2))
+            return np.average(contrib, weights = self.w)
+        return c * (np.vectorize(d_single))(xs)
