@@ -7,38 +7,46 @@ import numpy as np
 from numpy.linalg import norm
 
 def normalize(x):
-    return x / sum(x)
+    return x / np.sum(x)
 
-def kmeans(data, K, epsilon = 0.01, max_reps = 50):
+def kmeans(data, K, epsilon = 0.01, max_reps = 10):
     data = np.array(data)
-    num_data = len(data)
-    data_mean, data_sd = np.mean(data), np.std(data)
+    num_data = data.shape[0]
+    data_mean, data_cov = np.mean(data, axis = 0), np.cov(data, rowvar = 0)
+    def make_means(n):
+        return np.random.multivariate_normal(data_mean, data_cov, n)
 
-    means = np.random.normal(data_mean, data_sd, K)
+    means = make_means(K)
 
     J = np.Inf
     reps = 0
     while (reps < max_reps) and (J > epsilon * num_data):
+        J_old = J
         dists = np.empty((num_data, K))
         for k in range(K):
-            dists[:,k] = (data - means[k]) ** 2
-        best = np.argmin(dists, 1)
+            for i in range(num_data):
+                dists[i,k] = norm(data[i] - means[k])
+        best = np.argmin(dists, axis = 1)
 
         for k in range(K):
-            means[k] = np.mean(data[best == k])
-        means[np.isnan(means)] = np.random.normal(data_mean, data_sd, K)
+            means[k] = np.mean(data[best == k], axis = 0)
+            if np.isnan(means[k,0]):
+                means[k] = make_means(1)
 
-        J = np.sum((data - means[best]) ** 2)
-        print J
+        J = 0
+        for i in range(num_data):
+            J += norm(data[i] - means[best[i]])
+        if J == J_old: break
         reps += 1
 
     return means
 
-def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
+def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
        blocks = None, count_restart = 5.0, gamma_seed = None,
        true_gamma = None):
     data = np.array(data)
     num_data = data.shape[0]
+    num_class = len(dists)
     classes = range(num_class)
     if blocks is None:
         blocks = [np.arange(num_data)]
@@ -68,38 +76,40 @@ def em(data, num_class, dist, epsilon = 0.01, init_reps = 0, max_reps = 50,
             gamma_hat[:,o] = np.transpose(r[i])
 
     # Learn initial class-conditional distributions from data
-    dists_hat = [dist.from_data(data, gamma_hat[c]) for c in classes]
+    for c in classes:
+        dists[c].from_data(data, gamma_hat[c])
 
     reps = 0
+    phi_hat = np.empty((num_class, num_data))
     while True:
         # E step: from dists and pi, learn gamma
-        phi_hat = np.array([(d.density())(data) for d in dists_hat])
+        for c in classes:
+            phi_hat[c] = dists[c].density(data)
         for b, block in enumerate(blocks):
             for c in classes:
                 phi_hat[c,block] *= pi_hat[b,c]
         gamma_new = phi_hat / np.sum(phi_hat, 0)
 
         # M step: from gamma, learn dists and pi
-        dists_new = []
         for c in classes:
-            if sum(gamma_new[c]) < count_restart:
+            if np.sum(gamma_new[c]) < count_restart:
                 idx = np.random.random_integers(num_data,
                                                 size = int(count_restart)) - 1
-                dists_new.append(dist.from_data(data[idx]))
+                dists[c].from_data(data[idx])
             else:
-                dists_new.append(dist.from_data(data, gamma_new[c]))
-        pi_new = np.array([normalize(np.sum(gamma_new[:,block], 1))
-                           for block in blocks])
+                dists[c].from_data(data, gamma_new[c])
+        for b, block in enumerate(blocks):
+            pi_hat[b] = normalize(np.sum(gamma_new[:,block], 1))
 
         reps += 1
         converged = np.max(np.abs(gamma_hat - gamma_new)) < epsilon
-        pi_hat, gamma_hat, dists_hat = pi_new, gamma_new, dists_new
+        gamma_hat = gamma_new
         if (converged and reps >= init_reps) or (reps >= max_reps):
             break
 
-    return { 'pi': pi_new,
-             'dists': dists_new,
-             'gamma': gamma_new,
+    return { 'pi': pi_hat,
+             'dists': dists,
+             'gamma': gamma_hat,
              'reps': reps,
              'converged': converged }
 
