@@ -5,16 +5,21 @@
 
 import numpy as np
 from numpy.linalg import norm
+from scipy.spatial.distance import cdist
 
 def normalize(x):
     return x / np.sum(x)
 
 def kmeans(data, K, epsilon = 0.01, max_reps = 10):
     data = np.array(data)
-    num_data = data.shape[0]
+    num_data, dim = data.shape[0], data.shape[1]
     data_mean, data_cov = np.mean(data, axis = 0), np.cov(data, rowvar = 0)
-    def make_means(n):
-        return np.random.multivariate_normal(data_mean, data_cov, n)
+    if dim == 1:
+        def make_means(n):
+            return np.random.normal(data_mean, np.sqrt(data_cov), (n,1))
+    else:
+        def make_means(n):
+            return np.random.multivariate_normal(data_mean, data_cov, n)
 
     means = make_means(K)
 
@@ -22,10 +27,7 @@ def kmeans(data, K, epsilon = 0.01, max_reps = 10):
     reps = 0
     while (reps < max_reps) and (J > epsilon * num_data):
         J_old = J
-        dists = np.empty((num_data, K))
-        for k in range(K):
-            for i in range(num_data):
-                dists[i,k] = norm(data[i] - means[k])
+        dists = cdist(data, means)
         best = np.argmin(dists, axis = 1)
 
         for k in range(K):
@@ -39,11 +41,11 @@ def kmeans(data, K, epsilon = 0.01, max_reps = 10):
         if J == J_old: break
         reps += 1
 
-    return means
+    return { 'means': means, 'best': best }
 
 def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
        blocks = None, count_restart = 5.0, gamma_seed = None,
-       true_gamma = None):
+       init_gamma = None):
     data = np.array(data)
     num_data = data.shape[0]
     num_class = len(dists)
@@ -52,15 +54,15 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
         blocks = [np.arange(num_data)]
     num_block = len(blocks)
 
-    # Initialize (blocked) mixing parametes
+    # Initialize (blocked) mixing parameters
     pi_hat = np.array([normalize(np.array([1.0 for i in classes]))
                        for b in range(num_block)])
 
     # Initialize responsiblities, winner take all
-    if not true_gamma is None:
+    if not init_gamma is None:
         # Initialize with true class membership
         gamma_hat = np.zeros((num_class, num_data))
-        for j, c in enumerate(true_gamma):
+        for j, c in enumerate(init_gamma):
             gamma_hat[c,j] = 1.0
     else:
         # Random initialization
