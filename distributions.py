@@ -2,6 +2,7 @@
 # Daniel Klein, 3/29/2011
 
 import numpy as np
+import numpy.linalg as la
 from scipy.stats import norm
 
 # Core methods are: __init__, from_data, density
@@ -76,6 +77,48 @@ class Laplace:
         c = 1 / (2 * self.b)
         return c * np.exp(-abs(xs - self.mu) / self.b)
 
+class MultivariateNormal:
+    def __init__(self, m = np.array([0]), c = np.matrix([[1]])):
+        self.m, self.c = m, c
+        self.k = len(m)
+
+    def from_data(self, data, weights = None):
+        n, k = data.shape[0], data.shape[1]
+        m = np.average(data, axis = 0, weights = weights)
+        data0 = data - m
+        c = np.empty((k,k))
+        for i in range(k):
+            for j in range(k):
+                if i < j: continue
+                cell = np.average(data0[:,i] * data0[:,j], weights = weights)
+                c[i,j] = cell
+                if not i == j: c[j,i] = cell
+        self.m, self.c, self.k = m, c, k
+
+    def mean(self):
+        return self.m
+
+    def cov(self):
+        return self.c
+
+    def display(self):
+        return 'MVNormal(mu = %s, Sigma = ...)' % str(self.m)
+
+    def sample(self):
+        return np.random.multivariate_normal(self.m, self.c)
+
+    # TODO: very ugly, should clean up or at least explain...
+    def density(self, xs):
+        n = xs.shape[0]
+        xs0 = xs - self.m
+        c = (2.0 * np.pi) ** (-self.k / 2.0) * abs(la.det(self.c)) ** (-0.5)
+        sigma_inv_sqrt = la.cholesky(la.inv(self.c))
+        mdistsq = np.empty(n)
+        for i in range(n):
+            x_sigma_inv_sqrt = np.dot(xs0[i,], sigma_inv_sqrt)
+            mdistsq[i] = np.dot(x_sigma_inv_sqrt, x_sigma_inv_sqrt)
+        return c * np.exp(-0.5 * mdistsq)
+
 class Normal:
     def __init__(self, m = 0, s = 1, max_sigma = np.Inf):
         self.m, self.s, self.max_s = m, s, max_sigma
@@ -110,9 +153,6 @@ class NormalFixedMean(Normal):
 class Kernel:
     def __init__(self, x = None, w = None, h = 1.0):
         self.x, self.w, self.h = x, w, h
-
-    def __copy__(self):
-        return Kernel(self.h)
 
     def from_data(self, data, weights = None):
         self.x, self.w = data, weights
