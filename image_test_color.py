@@ -5,8 +5,12 @@
 # Adapting the idea to color images.
 # Daniel Klein, 7/1/2011
 
+import subprocess
+import os
+
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 import numpy as np
 import numpy.linalg as la
 
@@ -15,14 +19,17 @@ from em import em, kmeans
 
 
 # Parameters
-image_file = 'starry_night.jpg'
-image_rescale = 5
-noise_var = 2340
-noise_cov = -790
-block_splits = 1
+image_file = 'applied_math.jpg'
+image_rescale = 10
+noise_var = 3340
+noise_cov = -990
+block_splits = 2
 count_restart = 0.0
-num_comps = 20
+num_comps = 3
+show_summary = False
 do_colormap = False
+do_variance_viz = False
+
 
 def main():
     # Load image
@@ -48,8 +55,8 @@ def main():
     draw.text((width + 25, height + 10),
               'Noise V = %.2f, C = %.2f' % (noise_var, noise_cov),
               fill = (0, 0, 0))
-    draw.text((5, 2 * height + 40), 'Argmax', fill = (0, 0, 0))
-    draw.text((width + 25, 2 * height + 40), 'Average', fill = (0, 0, 0))
+    draw.text((5, 2 * height + 40), 'Blocked Gamma', fill = (0, 0, 0))
+    draw.text((width + 25, 2 * height + 40), 'Dists', fill = (0, 0, 0))
     del draw
     summary.paste(im, (10, 10))
 
@@ -101,6 +108,7 @@ def main():
             plt.xlabel(c1)
             plt.ylabel(c2)
             plt.axis([-20, 275, -20, 275])
+        plt.savefig('image_test_color_colormap.png')
         plt.show()
 
     # Do EM
@@ -108,9 +116,11 @@ def main():
                  [MultivariateNormal() for n in range(num_comps)],
                  count_restart = count_restart,
                  blocks = blocks,
-                 max_reps = 20,
-                 init_gamma = init_gamma)
+                 max_reps = 100,
+                 init_gamma = init_gamma,
+                 trace = True)
     dists = results['dists']
+    dists_trace = results['dists_trace']
     pi = results['pi']
     print 'Iterations: %(reps)d' % results
 
@@ -118,26 +128,99 @@ def main():
     means = np.array([d.mean() for d in dists])
     covs = np.array([d.cov() for d in dists])
 
-    # Reconstruct with argmax
-    rec_argmax = means[np.argmax(gamma, axis=1)]
-    im_argmax = image_from_array(rec_argmax)
-    summary.paste(im_argmax, (10, 40 + height))
+    # Reconstruct with blocked gamma
+    rec_blocked_gamma = np.array([np.average(means, weights=g, axis=0)
+                                  for g in gamma])
+    im_blocked_gamma = image_from_array(rec_blocked_gamma)
+    summary.paste(im_blocked_gamma, (10, 40 + height))
 
-    # Reconstruct with weighted average
-    rec_avg = np.array([np.average(means, weights=g, axis=0) for g in gamma])
-    im_avg = image_from_array(rec_avg)
-    summary.paste(im_avg, (30 + width, 40 + height))
+    # Reconstruct from distributions alone
+    phi = np.empty((num_data, num_comps))
+    for c in range(num_comps):
+        phi[:,c] = dists[c].density(noisy_emissions)
+    phi = np.matrix(phi)
+    phi_t = np.transpose(phi)
+    hat = la.inv(phi_t * phi) * phi_t
+    print hat
+    print np.dot(phi, np.ones((num_comps, 1)))
+    print ((num_data * num_comps) *
+           np.dot(hat, np.dot(phi, np.ones((num_comps, 1)))))
+    import sys; sys.exit()
+    rec_dists = 1
+    im_dists = image_from_array(rec_dists)
+    summary.paste(im_dists, (30 + width, 40 + height))
 
     # Show summary image
-    summary.show()
-    summary.save('image_test_color.png')
+    if show_summary:
+        summary.show()
+    summary.save('image_test_color_reconstruction.png')
 
     # Compare RMSE between reconstructions
     def rmse(x):
         return np.sqrt(np.mean((x - real_emissions) ** 2))
     print 'Raw MSE: %.1f' % rmse(noisy_emissions)
-    print 'ArgMax MSE: %.1f' % rmse(rec_argmax)
-    print 'Avg MSE: %.1f' % rmse(rec_avg)
+    print 'Blocked Gamma MSE: %.1f' % rmse(rec_blocked_gamma)
+    print 'Dists MSE: %.1f' % rmse(rec_dists)
+
+    # Visualize variance components
+    if do_variance_viz:
+        temp_files = []
+        col = { 'R': 0, 'G': 1, 'B': 2 }
+        fig = plt.figure()
+        for i, (d, c1, c2) in enumerate([(real_emissions, 'R', 'G'),
+                                         (real_emissions, 'R', 'B'),
+                                         (real_emissions, 'G', 'B'),
+                                         (noisy_emissions, 'R', 'G'),
+                                         (noisy_emissions, 'R', 'B'),
+                                         (noisy_emissions, 'G', 'B')]):
+            ax = fig.add_subplot(2, 3, i+1)
+            plt.hexbin(d[:,col[c1]], d[:,col[c2]], gridsize=30,
+                       extent = (0, 255, 0, 255))
+            plt.xlabel(c1)
+            plt.ylabel(c2)
+            plt.axis([-20, 275, -20, 275])
+        for idx, dists in enumerate(dists_trace):
+            ells = []
+            for i, (d, c1, c2) in enumerate([(real_emissions, 'R', 'G'),
+                                             (real_emissions, 'R', 'B'),
+                                             (real_emissions, 'G', 'B'),
+                                             (noisy_emissions, 'R', 'G'),
+                                             (noisy_emissions, 'R', 'B'),
+                                             (noisy_emissions, 'G', 'B')]):
+                for dist in dists:
+                    m, c = dist.mean(), dist.cov()
+                    cm = (c[[col[c1], col[c2]]])[:,[col[c1], col[c2]]]
+                    e, v = la.eigh(cm)
+                    ell = Ellipse(xy = [m[col[c1]], m[col[c2]]],
+                                  width = np.sqrt(e[0]),
+                                  height = np.sqrt(e[1]),
+                                  angle = (180.0 / np.pi) * np.arccos(v[0,0]))
+                    ells.append(ell)
+                    ax = fig.add_subplot(2, 3, i+1)
+                    ax.add_artist(ell)
+                    ell.set_clip_box(ax.bbox)
+                    ell.set_alpha(0.9)
+                    ell.set_facecolor(np.fmax(np.fmin(m / 255, 1), 0))
+            file_name = 'tmp_%03d.png' % idx
+            temp_files.append(file_name)
+            plt.savefig(file_name, dpi = 100)
+            for ell in ells:
+                ell.remove()
+        command = ('mencoder',
+                   'mf://tmp_*.png',
+                   '-mf',
+                   'type=png:w=800:h=600:fps=5',
+                   '-ovc',
+                   'lavc',
+                   '-lavcopts',
+                   'vcodec=mpeg4',
+                   '-oac',
+                   'copy',
+                   '-o',
+                   'image_test_color_components.avi')
+        os.spawnvp(os.P_WAIT, 'mencoder', command)
+        for temp_file in temp_files:
+            os.unlink(temp_file)
 
     # Find common variance components
     print 'True noise:'
