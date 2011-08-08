@@ -32,7 +32,25 @@ with(dat, xyplot(err.mean.mean ~ num.data | blocks, groups = shuffled,
 dev.off()
 
 pdf("all_log_likelihood_num_data_by_block.pdf")
-with(dat, xyplot(log.likelihood ~ num.data | blocks + shuffled))
+with(dat, xyplot(log.likelihood ~ num.data | blocks, groups = shuffled,
+                 scales = list(alternating = FALSE),
+                 strip = strip.custom(strip.names = c(TRUE, TRUE)),
+                 auto.key = list(space = "bottom"),
+                 layout = c(NA,1),
+                 main = "EM Performance with Blocking",
+                 xlab = "number of data",
+                 ylab = "log-likelihood (global)"))
+dev.off()
+
+pdf("all_log_likelihood_blocked_num_data_by_block.pdf")
+with(dat, xyplot(log.likelihood.local ~ num.data | blocks, groups = shuffled,
+                 scales = list(alternating = FALSE),
+                 strip = strip.custom(strip.names = c(TRUE, TRUE)),
+                 auto.key = list(space = "bottom"),
+                 layout = c(NA,1),
+                 main = "EM Performance with Blocking",
+                 xlab = "number of data",
+                 ylab = "log-likelihood (blocked)"))
 dev.off()
 
 pdf("all_reps_num_data_by_block.pdf")
