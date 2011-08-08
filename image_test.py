@@ -4,29 +4,25 @@
 # Testing application to image denoising.
 # Daniel Klein, 4/18/2011
 
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageDraw
+import matplotlib.pyplot as plt
 import numpy as np
 
-from distributions import Normal
-from em import em, kmeans
+from distributions import NormalFixedMean
+from em import em
 from visualization import display_hist, display_densities
 
 # Parameters
 image_file = 'broadway.jpg'
-image_rescale = 10
-noise_sd = 15.0
-num_components = 4
-comp_dist = Normal(max_sigma = 20.0)
-block_splits = 12
-count_restart = 20.0
-level_bits = 2
+image_rescale = 15
+noise_sd = 35.0
+block_splits = 5
+count_restart = 10.0
+max_sigma = 60.0
 
 # Load image
 im = Image.open(image_file).convert('L')
 width, height = im.size
-
-# Posterize image
-im = ImageOps.posterize(im, level_bits)
 
 # Resize image
 width, height = int(width / image_rescale), int(height / image_rescale)
@@ -59,40 +55,53 @@ for hb in height_blocks:
         blocks.append(np.array(block))
 
 # Generate noise
-noise_dat = np.random.normal(0, noise_sd, width * height)
+noise = np.random.normal(0, noise_sd, width * height)
+noisy_emissions = real_emissions + noise
 
 # Generate noisy image
 noisy = Image.new('L', (width, height))
-noisy.putdata(real_emissions + noise_dat)
-noisy_emissions = list(noisy.getdata())
+noisy.putdata(noisy_emissions)
 summary.paste(noisy, (30 + width, 10))
 
 # Do EM
-kmeans(noisy_emissions, num_components)
 results = em(noisy_emissions,
-             num_components,
-             comp_dist,
+             [NormalFixedMean(m, max_sigma = max_sigma) for m in range(256)],
              count_restart = count_restart,
              blocks = blocks)
 dists = results['dists']
 pi = results['pi']
+print 'Iterations: %(reps)d' % results
+
 gamma = np.transpose(results['gamma'])
 means = np.array([d.mean() for d in dists])
+sds = np.array([d.sd() for d in dists])
 
 # Display summary figures
-# display_densities(real_emissions, dists)
-# display_hist(real_emissions, dists)
+display_densities(real_emissions, dists)
 
 # Reconstruct with argmax
 im_argmax = Image.new('L', (width, height))
-im_argmax.putdata(means[np.argmax(gamma, axis=1)])
+reconstruct_argmax = means[np.argmax(gamma, axis=1)]
+im_argmax.putdata(reconstruct_argmax)
 summary.paste(im_argmax, (10, 40 + height))
 
 # Reconstruct with weighted average
 im_avg = Image.new('L', (width, height))
-im_avg.putdata([np.average(means, weights=g, axis=0) for g in gamma])
+reconstruct_avg = [np.average(means, weights=g, axis=0) for g in gamma]
+im_avg.putdata(reconstruct_avg)
 summary.paste(im_avg, (30 + width, 40 + height))
 
 # Show summary image
 summary.show()
 
+# Display estimated per-level noise parameters
+plt.figure()
+plt.hist(sds, normed = True, bins = 20)
+plt.show()
+
+# Compare RMSE between reconstructions
+def rmse(x):
+    return np.sqrt(np.mean((x - real_emissions) ** 2))
+print 'Raw MSE: %.1f' % rmse(noisy_emissions)
+print 'ArgMax MSE: %.1f' % rmse(reconstruct_argmax)
+print 'Avg MSE: %.1f' % rmse(reconstruct_avg)
