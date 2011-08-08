@@ -21,5 +21,5 @@ def display_densities(data, distributions):
     points = np.linspace(min(data) - 0.5, max(data) + 0.5, 1000)
     plt.figure()
     for d in distributions:
-        plt.plot(points, (d.density())(points))
+        plt.plot(points, d.density(points))
     plt.show()
