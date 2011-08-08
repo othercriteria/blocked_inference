@@ -6,6 +6,7 @@
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import cdist
+from copy import deepcopy
 
 def normalize(x):
     return x / np.sum(x)
@@ -45,7 +46,7 @@ def kmeans(data, K, epsilon = 0.01, max_reps = 10):
 
 def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
        blocks = None, count_restart = 5.0, gamma_seed = None,
-       init_gamma = None):
+       init_gamma = None, trace = False):
     data = np.array(data)
     num_data = data.shape[0]
     num_class = len(dists)
@@ -83,6 +84,8 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
 
     reps = 0
     phi_hat = np.empty((num_class, num_data))
+    if trace:
+        dists_trace = [deepcopy(dists)]
     while True:
         # E step: from dists and pi, learn gamma
         for c in classes:
@@ -100,6 +103,8 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
                 dists[c].from_data(data[idx])
             else:
                 dists[c].from_data(data, gamma_new[c])
+        if trace:
+            dists_trace.append(deepcopy(dists))
         for b, block in enumerate(blocks):
             pi_hat[b] = normalize(np.sum(gamma_new[:,block], 1))
 
@@ -109,9 +114,12 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
         if (converged and reps >= init_reps) or (reps >= max_reps):
             break
 
-    return { 'pi': pi_hat,
-             'dists': dists,
-             'gamma': gamma_hat,
-             'reps': reps,
-             'converged': converged }
+    results = { 'pi': pi_hat,
+                'dists': dists,
+                'gamma': gamma_hat,
+                'reps': reps,
+                'converged': converged }
+    if trace:
+        results['dists_trace'] = dists_trace
+    return results
 
