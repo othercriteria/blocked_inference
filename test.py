@@ -51,19 +51,18 @@ def main():
     run_id = 0
 
     scale = 0.5
-    emissions_normal = { 1: Normal({'m': 0,   's': 2.0 * scale}),
-                         2: Normal({'m': 3.5, 's': 3.0 * scale}),
-                         3: Normal({'m': 6.5, 's': 1.0 * scale}) }
-    emissions_laplace = { 1: Laplace({'mu': 0,   'b': 2.0 * scale}),
-                          2: Laplace({'mu': 3.5, 'b': 3.0 * scale}),
-                          3: Laplace({'mu': 6.5, 'b': 1.0 * scale}) }
+    emissions_normal = { 1: Normal(0, 2.0 * scale),
+                         2: Normal(3.5, 3.0 * scale),
+                         3: Normal(6.5, 1.0 * scale) }
+    emissions_laplace = { 1: Laplace(0, 2.0 * scale),
+                          2: Laplace(3.5, 3.0 * scale),
+                          3: Laplace(6.5, 1.0 * scale) }
     emission_spec = emissions_normal
-    dist = Normal(max_sigma = 6.0)
-    num_classes_guess = 3
-    num_state_reps = 2
-    num_emission_reps = 2
-    num_gamma_init_reps = 2
-    num_blocks = [1,2,5] # [1, 2, 5, 10, 20, 50, 100]
+    dists = [Normal(max_sigma = 6.0) for n in range(3)]
+    num_state_reps = 50
+    num_emission_reps = 4
+    num_gamma_init_reps = 4
+    num_blocks = [1, 2, 5, 10, 20, 50]
     verbose = False
     graphics_on = False
 
@@ -83,7 +82,7 @@ def main():
                     emission_spec)
             model.simulate()
             num_data = len(model.state_vec)
-            if num_data < 4000 and num_data > 200: break
+            if num_data < 5000 and num_data > 100: break
 
         counts = {}
         for state in model.state_vec:
@@ -116,7 +115,7 @@ def main():
                     for gamma_rep in range(num_gamma_init_reps):
                         if verbose: print 'Initial gamma seed: %d' % gamma_rep
 
-                        true_gamma = np.array(states) - 1
+                        init_gamma = np.array(states) - 1
 
                         run_id += 1
                         this_run = {}
@@ -130,11 +129,10 @@ def main():
 
                         start_time = time.clock()
                         results = em(emissions,
-                                     num_classes_guess,
-                                     dist,
+                                     dists,
                                      blocks = blocks,
                                      gamma_seed = gamma_rep,
-                                     true_gamma = true_gamma,
+                                     init_gamma = init_gamma,
                                      count_restart = 0.0)
                         pi = results['pi']
                         dists = results['dists']
@@ -162,8 +160,15 @@ def main():
                         like = np.zeros(num_data)
                         pi_overall = np.mean(pi, 0)
                         for p, dist in zip(pi_overall, dists):
-                            like += p * (dist.density())(states)
+                            like += p * dist.density(states)
                         this_run['log likelihood'] = np.sum(np.log(like))
+
+                        like = np.zeros(num_data)
+                        for i, block in enumerate(blocks):
+                            for p, dist in zip(pi[i], dists):
+                                comp = p * dist.density(states[block])
+                                like[block] += comp
+                        this_run['log likelihood local'] = np.sum(np.log(like))
 
                         run_data[run_id] = this_run
 
