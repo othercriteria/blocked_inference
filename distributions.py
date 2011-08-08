@@ -107,7 +107,6 @@ class MultivariateNormal:
     def sample(self):
         return np.random.multivariate_normal(self.m, self.c)
 
-    # TODO: very ugly, should clean up or at least explain...
     def density(self, xs):
         n = xs.shape[0]
         xs0 = xs - self.m
@@ -149,6 +148,11 @@ class NormalFixedMean(Normal):
         v = np.average((data - self.m)**2, weights = weights)
         s = min(np.sqrt(v), self.max_s)
         self.s = s
+
+class NormalFixedVariance(Normal):
+    def from_data(self, data, weights = None):
+        m = np.average(data, weights = weights)
+        self.m = m
 
 class Kernel:
     def __init__(self, x = None, w = None, h = 1.0):
