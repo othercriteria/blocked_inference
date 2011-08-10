@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import numpy as np
 import numpy.linalg as la
+from scipy.optimize import fmin_l_bfgs_b
 
 from distributions import MultivariateNormal
 from em import em, kmeans
@@ -20,13 +21,13 @@ from em import em, kmeans
 
 # Parameters
 image_file = 'applied_math.jpg'
-image_rescale = 10
+image_rescale = 1
 noise_var = 3340
 noise_cov = -990
-block_splits = 2
+block_splits = 4
 count_restart = 0.0
-num_comps = 3
-show_summary = False
+num_comps = 8
+show_summary = True
 do_colormap = False
 do_variance_viz = False
 
@@ -140,13 +141,26 @@ def main():
         phi[:,c] = dists[c].density(noisy_emissions)
     phi = np.matrix(phi)
     phi_t = np.transpose(phi)
-    hat = la.inv(phi_t * phi) * phi_t
-    print hat
-    print np.dot(phi, np.ones((num_comps, 1)))
-    print ((num_data * num_comps) *
-           np.dot(hat, np.dot(phi, np.ones((num_comps, 1)))))
-    import sys; sys.exit()
-    rec_dists = 1
+    def fill(p):
+        return np.array(list(p) + [1 - np.sum(p)]).reshape((num_comps, 1))
+    def nll(p):
+        p_full = fill(p)
+        if np.min(p_full) < 0 or np.max(p_full) > 1:
+            return np.Inf
+        return -np.sum(np.log(np.dot(phi, p_full)))
+    def nll_prime(p):
+        p_full = fill(p)
+        grad = np.dot(-phi_t[0:(num_comps-1),:] + phi_t[(num_comps-1),:],
+                      1 / np.dot(phi, p_full))
+        return np.array(grad, order = 'F')
+    opt = fmin_l_bfgs_b(func = nll, fprime = nll_prime,
+                        x0 = np.array([1.0 / num_comps] * (num_comps-1)),
+                        bounds = [(0, 1)] * (num_comps-1))
+    pi_opt = fill(opt[0])
+    for i, pi in enumerate(pi_opt):
+        phi[:,i] *= pi
+    gamma_dists = phi / np.sum(phi, axis = 1)
+    rec_dists = np.array(np.dot(gamma_dists, means))
     im_dists = image_from_array(rec_dists)
     summary.paste(im_dists, (30 + width, 40 + height))
 
