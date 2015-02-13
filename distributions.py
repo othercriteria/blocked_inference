@@ -113,10 +113,10 @@ class MultivariateNormal:
         c = (2.0 * np.pi) ** (-self.k / 2.0) * abs(la.det(self.c)) ** (-0.5)
         sigma_inv_sqrt = la.cholesky(la.inv(self.c))
         x_sigma_inv_sqrt = np.dot(xs0, sigma_inv_sqrt)
-        mdistsq = np.empty(n)
+        mdist = np.empty(n)
         for i, r in enumerate(x_sigma_inv_sqrt):
-            mdistsq[i] = np.dot(r, r)
-        return c * np.exp(-0.5 * mdistsq)
+            mdist[i] = np.dot(r, r)
+        return c * np.exp(-0.5 * mdist)
 
 class Normal:
     def __init__(self, m = 0, s = 1, max_sigma = np.Inf):

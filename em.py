@@ -6,6 +6,7 @@
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import cdist
+from scipy.optimize import fmin_l_bfgs_b
 from copy import deepcopy
 
 def normalize(x):
@@ -44,9 +45,35 @@ def kmeans(data, K, epsilon = 0.01, max_reps = 10):
 
     return { 'means': means, 'best': best }
 
+def pi_maximize(data, dists):
+    num_data = data.shape[0]
+    num_comps = len(dists)
+    
+    phi = np.empty((num_data, num_comps))
+    for c in range(num_comps):
+        phi[:,c] = dists[c].density(data)
+    phi = np.matrix(phi)
+    phi_t = np.transpose(phi)
+    def fill(p):
+        return np.array(list(p) + [1 - np.sum(p)]).reshape((num_comps, 1))
+    def nll(p):
+        p_full = fill(p)
+        if np.min(p_full) < 0 or np.max(p_full) > 1:
+            return np.Inf
+        return -np.sum(np.log(np.dot(phi, p_full)))
+    def nll_prime(p):
+        p_full = fill(p)
+        grad = np.dot(-phi_t[0:(num_comps-1),:] + phi_t[(num_comps-1),:],
+                      1 / np.dot(phi, p_full))
+        return np.array(grad, order = 'F')
+    opt = fmin_l_bfgs_b(func = nll, fprime = nll_prime,
+                        x0 = np.array([1.0 / num_comps] * (num_comps-1)),
+                        bounds = [(0, 1)] * (num_comps-1))
+    return fill(opt[0])
+
 def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
-       blocks = None, count_restart = 5.0, gamma_seed = None,
-       init_gamma = None, trace = False):
+       blocks = None, count_restart = 0.0, gamma_seed = None,
+       init_gamma = None, trace = False, pi_max = False):
     data = np.array(data)
     num_data = data.shape[0]
     num_class = len(dists)
@@ -86,6 +113,7 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
     phi_hat = np.empty((num_class, num_data))
     if trace:
         dists_trace = [deepcopy(dists)]
+        pi_trace = [deepcopy(pi_hat)]
     while True:
         # E step: from dists and pi, learn gamma
         for c in classes:
@@ -105,8 +133,14 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
                 dists[c].from_data(data, gamma_new[c])
         if trace:
             dists_trace.append(deepcopy(dists))
-        for b, block in enumerate(blocks):
-            pi_hat[b] = normalize(np.sum(gamma_new[:,block], 1))
+        if pi_max:
+            for b, block in enumerate(blocks):
+                pi_hat[b] = np.transpose(pi_maximize(data[block], dists))
+        else:
+            for b, block in enumerate(blocks):
+                pi_hat[b] = normalize(np.sum(gamma_new[:,block], 1))
+        if trace:
+            pi_trace.append(deepcopy(pi_hat))
 
         reps += 1
         converged = np.max(np.abs(gamma_hat - gamma_new)) < epsilon
@@ -121,5 +155,6 @@ def em(data, dists, epsilon = 0.01, init_reps = 0, max_reps = 50,
                 'converged': converged }
     if trace:
         results['dists_trace'] = dists_trace
+        results['pi_trace'] = pi_trace
     return results
 
