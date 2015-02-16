@@ -1,1 +1,7 @@
 *.pyc
+*.jpg
+*.png
+*.avi
+*.pdf
+*~
+digits/
